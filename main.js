@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerIpc } from './electron/ipc/routes.js';
 import { CardsController } from './electron/controllers/CardsController.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,9 +40,9 @@ function createWindow() {
     console.log('[MAIN] Loading DEV URL:', devUrl);
     win.loadURL(devUrl);
   } else {
-    const prod = path.join(__dirname, 'dist', 'index.html');
-    console.log('[MAIN] Loading PROD file:', prod);
-    win.loadFile(prod);
+    const indexPath = fileURLToPath(new URL('./dist/index.html', import.meta.url));
+    console.log('[MAIN] Loading PROD file:', indexPath);
+    win.loadFile(indexPath);
   }
 }
 
@@ -49,9 +50,25 @@ registerIpc(ipcMain);
 
 process.on('unhandledRejection', (r) => console.error('[UNHANDLED REJECTION]', r));
 
+function createAppMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        { role: 'quit', label: 'Quit' } // en macOS mostrará "MTGNode → Quit"
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
 app.whenReady().then(async () => {
   await bootSeed();
   createWindow();
+  createAppMenu();
+
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
