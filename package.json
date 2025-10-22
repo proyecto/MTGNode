@@ -9,13 +9,47 @@
     "start": "electron .",
     "build": "vite build",
     "preview": "vite preview",
-    "scry:import": "ELECTRON_RUN_AS_NODE=1 electron scripts/import-scryfall.mjs"
+    "scry:import": "ELECTRON_RUN_AS_NODE=1 electron scripts/import-scryfall.mjs",
+    "dist": "electron-builder -m"
+  },
+  "build": {
+    "appId": "com.tuempresa.mtgnode",
+    "productName": "MTGNode",
+    "files": [
+      "dist/**",
+      "main.js",
+      "electron/**",
+      "package.json",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 150,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^9.0.0",
-    "electron": "^31.3.0",
+    "electron": "^31.7.7",
+    "electron-builder": "^26.0.12",
     "vite": "^5.4.0",
     "wait-on": "^8.0.0"
   },
