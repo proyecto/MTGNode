@@ -1,26 +1,50 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 
 export default function Coleccion() {
   const [rows, setRows] = useState([]);
-  const [status, setStatus] = useState('init');
+  const [status, setStatus] = useState("init");
 
   async function load() {
-    setStatus('cargando');
+    setStatus("cargando");
     const list = await window.api.collectionList();
     setRows(list || []);
-    setStatus('ok');
+    setStatus("ok");
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function onExportClick() {
+    const res = await window.api.collectionExportCSV();
+    if (res?.ok) {
+      alert(`Exportado ${res.count} filas a:\n${res.path}`);
+    } else if (res?.canceled) {
+      // usuario canceló -> no hacemos nada
+    } else {
+      alert(`No se pudo exportar: ${res?.error || "error desconocido"}`);
+    }
+  }
+
+  async function onImportClick() {
+    const res = await window.api.collectionImportCSVStub();
+    if (res?.ok) {
+      alert(
+        `Import (stub) OK\nSimulado: ${res.simulated}\nSe importarían: ${res.wouldImport} filas`
+      );
+    } else {
+      alert(`Import (stub) ERROR: ${res?.error || "desconocido"}`);
+    }
+  }
 
   async function inc(cardId) {
-    const row = rows.find(r => r.card_id === cardId);
+    const row = rows.find((r) => r.card_id === cardId);
     const newQty = (row?.quantity || 0) + 1;
     await window.api.collectionUpdateQty(cardId, newQty);
     await load();
   }
   async function dec(cardId) {
-    const row = rows.find(r => r.card_id === cardId);
+    const row = rows.find((r) => r.card_id === cardId);
     const newQty = Math.max(0, (row?.quantity || 0) - 1);
     await window.api.collectionUpdateQty(cardId, newQty);
     await load();
@@ -31,34 +55,51 @@ export default function Coleccion() {
   }
 
   return (
-    <div style={{ display:'grid', gap:12 }}>
+    <div style={{ display: "grid", gap: 12 }}>
       <h2 style={{ margin: 0 }}>Mi colección</h2>
 
-      {status !== 'ok' ? (
-        <div style={{ opacity:.7 }}>Cargando…</div>
+      {status !== "ok" ? (
+        <div style={{ opacity: 0.7 }}>Cargando…</div>
       ) : rows.length === 0 ? (
-        <div style={{ opacity:.7 }}>Aún no has añadido cartas a tu colección.</div>
+        <div style={{ opacity: 0.7 }}>
+          Aún no has añadido cartas a tu colección.
+        </div>
       ) : (
-        <ul style={{ listStyle:'none', padding:0, margin:0 }}>
-          {rows.map(r => (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {rows.map((r) => (
             <li key={r.collection_id} style={row}>
-              <div style={{ display:'flex', justifyContent:'space-between', gap:16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                }}
+              >
                 <div>
-                  <div style={{ fontWeight:600 }}>
-                    {r.name} <span style={{ opacity:.6 }}>({r.edition || '—'})</span>
+                  <div style={{ fontWeight: 600 }}>
+                    {r.name}{" "}
+                    <span style={{ opacity: 0.6 }}>({r.edition || "—"})</span>
                   </div>
-                  <div style={{ fontSize:12, opacity:.8 }}>
-                    {r.rarity || '—'} · {Number(r.price_eur || 0)} €
+                  <div style={{ fontSize: 12, opacity: 0.8 }}>
+                    {r.rarity || "—"} · {Number(r.price_eur || 0)} €
                   </div>
-                  <div style={{ fontSize:12, opacity:.6 }}>
+                  <div style={{ fontSize: 12, opacity: 0.6 }}>
                     Añadida: {new Date(r.acquired_at).toLocaleString()}
                   </div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <button onClick={() => dec(r.card_id)} style={btn}>–</button>
-                  <span style={{ minWidth:24, textAlign:'center' }}>{r.quantity}</span>
-                  <button onClick={() => inc(r.card_id)} style={btn}>+</button>
-                  <button onClick={() => remove(r.card_id)} style={btnAlt}>Eliminar</button>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={() => dec(r.card_id)} style={btn}>
+                    –
+                  </button>
+                  <span style={{ minWidth: 24, textAlign: "center" }}>
+                    {r.quantity}
+                  </span>
+                  <button onClick={() => inc(r.card_id)} style={btn}>
+                    +
+                  </button>
+                  <button onClick={() => remove(r.card_id)} style={btnAlt}>
+                    Eliminar
+                  </button>
                 </div>
               </div>
             </li>
@@ -66,13 +107,33 @@ export default function Coleccion() {
         </ul>
       )}
 
-      <div>
-        <button onClick={load} style={btn}>Recargar</button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={load} style={btn}>
+          Recargar
+        </button>
+        <button onClick={onExportClick} style={btn}>
+          Exportar CSV
+        </button>
+        <button onClick={onImportClick} style={btn}>
+          Importar CSV
+        </button>
       </div>
     </div>
   );
 }
 
-const row = { border:'1px solid #eee', borderRadius:12, padding:12, marginBottom:8, background:'#fff' };
-const btn = { padding:'6px 10px', borderRadius:8, border:'1px solid #e5e5e5', background:'#f5f5f7', cursor:'pointer' };
-const btnAlt = { ...btn, background:'#fff' };
+const row = {
+  border: "1px solid #eee",
+  borderRadius: 12,
+  padding: 12,
+  marginBottom: 8,
+  background: "#fff",
+};
+const btn = {
+  padding: "6px 10px",
+  borderRadius: 8,
+  border: "1px solid #e5e5e5",
+  background: "#f5f5f7",
+  cursor: "pointer",
+};
+const btnAlt = { ...btn, background: "#fff" };
