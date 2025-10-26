@@ -37,9 +37,31 @@ export default function Colecciones() {
     })();
   }, [selectedCard]);
 
+  const [imageZoomSrc, setImageZoomSrc] = useState(null);
+
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 760px)");
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
   function closeDetail() {
     console.log("[DETAIL] close");
     setSelectedCard(null);
+  }
+
+  function openImageZoom(src) {
+    if (!src) return;
+    console.log("[DETAIL] image zoom open");
+    setImageZoomSrc(src);
+  }
+
+  function closeImageZoom() {
+    console.log("[DETAIL] image zoom close");
+    setImageZoomSrc(null);
   }
 
   // 🔎 búsqueda
@@ -264,15 +286,16 @@ export default function Colecciones() {
           tabIndex={-1} // para captar teclas
         >
           <div style={panel}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12,
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 16 }}>
+            <div style={panelHeader}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 16,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {selectedCard.name}
               </div>
               <button style={btn} onClick={closeDetail}>
@@ -280,140 +303,136 @@ export default function Colecciones() {
               </button>
             </div>
 
-            {/* Contenido mínimo por ahora */}
-            <div style={{ fontSize: 13, opacity: 0.8 }}>
-              (DEBUG) ID: {selectedCard.id || "—"} · Nº:{" "}
-              {selectedCard.collector_number || "—"} · Rareza:{" "}
-              {selectedCard.rarity || "—"}
-            </div>
-
-            <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
-              {/* Imagen de la carta */}
-              {selectedCard.image_normal ? (
-                <img
-                  src={selectedCard.image_normal}
-                  alt={selectedCard.name}
-                  style={{
-                    width: 223,
-                    height: 310,
-                    objectFit: "cover",
-                    borderRadius: 8,
-                    border: "1px solid #eee",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 223,
-                    height: 310,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#fafafa",
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                    color: "#999",
-                  }}
-                >
-                  Sin imagen
-                </div>
-              )}
-
-              {/* Datos de la carta */}
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                }}
-              >
-                <div style={{ fontWeight: 700, fontSize: 18 }}>
-                  {selectedCard.name}
-                </div>
-                <div style={{ fontSize: 14, opacity: 0.8 }}>
-                  {selectedCard.set_name || "—"} · Nº{" "}
-                  {selectedCard.collector_number || "—"}
-                </div>
-                <div style={{ fontSize: 13 }}>
-                  <b>Rareza:</b> {selectedCard.rarity || "—"}
-                </div>
-
-                <div style={{ fontSize: 13 }}>
-                  <b>Precio:</b>{" "}
-                  {typeof selectedCard.eur === "number"
-                    ? `${selectedCard.eur} €`
-                    : "—"}{" "}
-                  {typeof selectedCard.eur_foil === "number"
-                    ? `(Foil ${selectedCard.eur_foil} €)`
-                    : ""}
-                </div>
-
-                {selectedCard.type_line && (
-                  <div style={{ fontSize: 13, marginTop: 8 }}>
-                    <b>Tipo:</b> {selectedCard.type_line}
-                  </div>
-                )}
-
-                {selectedCard.oracle_text && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 13,
-                      lineHeight: 1.5,
-                      whiteSpace: "pre-wrap",
-                      background: "#fafafa",
-                      padding: 8,
-                      borderRadius: 8,
-                      border: "1px solid #eee",
-                    }}
-                  >
-                    {selectedCard.oracle_text}
-                  </div>
+            <div
+              style={{
+                ...panelBody,
+                display: "flex",
+                gap: 16,
+                flexDirection: isNarrow ? "column" : "row",
+              }}
+            >
+              {/* Columna 1: imagen */}
+              <div style={colLeft}>
+                {selectedCard.image_normal ? (
+                  <img
+                    src={selectedCard.image_normal}
+                    alt={selectedCard.name}
+                    style={cardImg}
+                    onClick={() => openImageZoom(selectedCard.image_normal)}
+                  />
+                ) : (
+                  <div style={noImgBox}>Sin imagen</div>
                 )}
               </div>
-            </div>
-            {/* Datos extra de Scryfall */}
-            <div style={{ marginTop: 16, fontSize: 13 }}>
-              {detailStatus === "loading" && (
-                <div style={{ opacity: 0.7 }}>
-                  (DEBUG) Cargando datos ampliados…
-                </div>
-              )}
-              {detailStatus === "error" && (
-                <div style={{ color: "#b00020" }}>
-                  (DEBUG) Error al cargar detalles.
-                </div>
-              )}
-              {detailStatus === "ok" && detailData && (
-                <div style={{ marginTop: 8 }}>
-                  <div>
-                    <b>Artista:</b> {detailData.artist || "—"}
+
+              {/* Columna 2: datos */}
+              <div style={colRight}>
+                {/* Sección: Datos básicos */}
+                <div style={section}>
+                  <div style={sectionTitle}>Datos</div>
+                  <div style={kv}>
+                    <b>Edición:</b> <span>{selectedCard.set_name || "—"}</span>
                   </div>
-                  <div>
-                    <b>Color identidad:</b>{" "}
-                    {detailData.color_identity?.join(", ") || "—"}
+                  <div style={kv}>
+                    <b>Número:</b>{" "}
+                    <span>{selectedCard.collector_number || "—"}</span>
                   </div>
-                  <div>
-                    <b>Legalidades:</b>{" "}
-                    {Object.entries(detailData.legalities || {})
-                      .filter(([_, v]) => v === "legal")
-                      .map(([f]) => f)
-                      .join(", ") || "—"}
+                  <div style={kv}>
+                    <b>Rareza:</b> <span>{selectedCard.rarity || "—"}</span>
                   </div>
-                  {detailData.flavor_text && (
+                  <div style={kv}>
+                    <b>Precio:</b>{" "}
+                    <span>
+                      {typeof selectedCard.eur === "number"
+                        ? `${selectedCard.eur} €`
+                        : "—"}{" "}
+                      {typeof selectedCard.eur_foil === "number"
+                        ? `(Foil ${selectedCard.eur_foil} €)`
+                        : ""}
+                    </span>
+                  </div>
+                  {selectedCard.type_line && (
+                    <div style={kv}>
+                      <b>Tipo:</b> <span>{selectedCard.type_line}</span>
+                    </div>
+                  )}
+                  {/* Overlay de Zoom de Imagen — PASO 6 */}
+                  {imageZoomSrc && (
                     <div
-                      style={{
-                        marginTop: 8,
-                        fontStyle: "italic",
-                        opacity: 0.8,
+                      style={zoomOverlay}
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) closeImageZoom();
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") closeImageZoom();
+                      }}
+                      tabIndex={-1}
                     >
-                      “{detailData.flavor_text}”
+                      <img
+                        src={imageZoomSrc}
+                        alt="Carta"
+                        style={zoomImg}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <button style={zoomCloseBtn} onClick={closeImageZoom}>
+                        Cerrar
+                      </button>
                     </div>
                   )}
                 </div>
-              )}
+
+                {/* Sección: Texto */}
+                {selectedCard.oracle_text && (
+                  <div style={section}>
+                    <div style={sectionTitle}>Texto</div>
+                    <div style={rulesBox}>{selectedCard.oracle_text}</div>
+                  </div>
+                )}
+
+                {/* Sección: Datos ampliados (estado de carga / error / OK) */}
+                <div style={section}>
+                  <div style={sectionTitle}>Info ampliada</div>
+
+                  {detailStatus === "loading" && (
+                    <div style={loadingBox}>
+                      <div style={spinner} />
+                      <div>(DEBUG) Cargando datos ampliados…</div>
+                    </div>
+                  )}
+
+                  {detailStatus === "error" && (
+                    <div style={errorBox}>
+                      (DEBUG) Error al cargar detalles.
+                    </div>
+                  )}
+
+                  {detailStatus === "ok" && detailData && (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <div style={kv}>
+                        <b>Artista:</b> <span>{detailData.artist || "—"}</span>
+                      </div>
+                      <div style={kv}>
+                        <b>Color identidad:</b>{" "}
+                        <span>
+                          {detailData.color_identity?.join(", ") || "—"}
+                        </span>
+                      </div>
+                      <div style={kv}>
+                        <b>Legal en:</b>{" "}
+                        <span>
+                          {Object.entries(detailData.legalities || {})
+                            .filter(([_, v]) => v === "legal")
+                            .map(([f]) => f)
+                            .join(", ") || "—"}
+                        </span>
+                      </div>
+                      {detailData.flavor_text && (
+                        <div style={flavorBox}>“{detailData.flavor_text}”</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -500,12 +519,156 @@ const overlay = {
 };
 
 const panel = {
-  width: "min(720px, 95vw)",
+  width: "min(860px, 95vw)",
   maxHeight: "85vh",
-  overflowY: "auto",
+  overflow: "hidden", // cabecera sticky + body scrolleable
   background: "#fff",
   border: "1px solid #e5e5e5",
   borderRadius: 12,
-  padding: 16,
   boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+};
+
+const panelHeader = {
+  position: "sticky",
+  top: 0,
+  zIndex: 1,
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: 12,
+  background: "#fff",
+  borderBottom: "1px solid #f0f0f0",
+  borderTopLeftRadius: 12,
+  borderTopRightRadius: 12,
+};
+
+// nuevo: cuerpo scrolleable
+const panelBody = {
+  padding: 16,
+  overflowY: "auto",
+  maxHeight: "calc(85vh - 54px)", // resta la cabecera
+};
+
+// layout responsive 2 columnas
+const colLeft = { minWidth: 223 };
+const colRight = { minWidth: 0, flex: 1 };
+
+const section = { display: "grid", gap: 8, marginBottom: 16 };
+const sectionTitle = {
+  fontSize: 12,
+  textTransform: "uppercase",
+  letterSpacing: ".06em",
+  opacity: 0.7,
+};
+
+const kv = {
+  display: "flex",
+  gap: 6,
+  fontSize: 13,
+  alignItems: "baseline",
+  lineHeight: 1.4,
+};
+
+const cardImg = {
+  width: 223,
+  height: 310,
+  objectFit: "cover",
+  borderRadius: 8,
+  border: "1px solid #eee",
+  cursor: "zoom-in",
+};
+const noImgBox = {
+  width: 223,
+  height: 310,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#fafafa",
+  border: "1px solid #eee",
+  borderRadius: 8,
+  color: "#999",
+};
+
+const rulesBox = {
+  whiteSpace: "pre-wrap",
+  lineHeight: 1.5,
+  fontSize: 13,
+  background: "#fafafa",
+  padding: 8,
+  borderRadius: 8,
+  border: "1px solid #eee",
+};
+
+const flavorBox = {
+  marginTop: 6,
+  fontStyle: "italic",
+  opacity: 0.85,
+};
+
+// loading + spinner
+const loadingBox = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  fontSize: 13,
+  opacity: 0.8,
+};
+const spinner = {
+  width: 16,
+  height: 16,
+  border: "2px solid #ddd",
+  borderTopColor: "#888",
+  borderRadius: "50%",
+  animation: "spin 1s linear infinite",
+};
+
+// error
+const errorBox = {
+  background: "#ffecec",
+  border: "1px solid #ffc9c9",
+  color: "#b00020",
+  padding: 8,
+  borderRadius: 8,
+};
+
+// añade la keyframes animación (truco inline)
+const style = document.createElement("style");
+style.innerHTML = `@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`;
+if (!document.getElementById("__detail_spin_anim__")) {
+  style.id = "__detail_spin_anim__";
+  document.head.appendChild(style);
+}
+
+// Overlay de Zoom
+const zoomOverlay = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(0,0,0,0.8)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1100,
+  padding: 12
+};
+
+const zoomImg = {
+  maxWidth: '95vw',
+  maxHeight: '95vh',
+  borderRadius: 8,
+  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+  display: 'block'
+};
+
+const zoomCloseBtn = {
+  position: 'fixed',
+  top: 16,
+  right: 16,
+  padding:'8px 12px',
+  borderRadius:8,
+  border:'1px solid rgba(255,255,255,0.35)',
+  background:'rgba(255,255,255,0.1)',
+  color:'#fff',
+  cursor:'pointer',
+  backdropFilter: 'blur(6px)'
 };
