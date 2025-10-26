@@ -27,13 +27,21 @@ export default function Coleccion() {
   }
 
   async function onImportClick() {
-    const res = await window.api.collectionImportCSVStub();
+    const res = await window.api.collectionImportCSV();
     if (res?.ok) {
       alert(
-        `Import (stub) OK\nSimulado: ${res.simulated}\nSe importarían: ${res.wouldImport} filas`
+        `Importación completada:\n` +
+          `Añadidos: ${res.added}\n` +
+          `Actualizados: ${res.updated}\n` +
+          `Eliminados: ${res.removed}\n` +
+          `Ignorados: ${res.ignored}\n` +
+          `Archivo: ${res.path}`
       );
+      await load();
+    } else if (res?.canceled) {
+      // usuario canceló -> no hacemos nada
     } else {
-      alert(`Import (stub) ERROR: ${res?.error || "desconocido"}`);
+      alert(`No se pudo importar: ${res?.error || "error desconocido"}`);
     }
   }
 

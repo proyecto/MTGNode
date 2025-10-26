@@ -16,8 +16,7 @@ try {
       ipcRenderer.invoke("collection:updateQty", { cardId, qty }),
     collectionRemove: (cardId) =>
       ipcRenderer.invoke("collection:remove", { cardId }),
-    collectionImportCSVStub: () =>
-      ipcRenderer.invoke("collection:importCSV:stub"),
+    collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
 
     // Scry

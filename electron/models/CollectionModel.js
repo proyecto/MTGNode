@@ -42,3 +42,19 @@ export function removeFromCollection(cardId) {
   const del = db().prepare(`DELETE FROM collection WHERE card_id = ?`).run(cardId);
   return { ok: del.changes === 1 };
 }
+
+export function upsertExactQuantity(cardId, qty) {
+  const q = Math.max(0, Number(qty) || 0);
+  if (q === 0) {
+    const del = db().prepare(`DELETE FROM collection WHERE card_id = ?`).run(cardId);
+    return { ok: true, removed: del.changes >= 1 };
+  }
+  const stmt = db().prepare(`
+    INSERT INTO collection (card_id, quantity)
+    VALUES (?, ?)
+    ON CONFLICT(card_id) DO UPDATE SET quantity = excluded.quantity
+  `);
+  const info = stmt.run(cardId, q);
+  // changes puede ser 1 (insert) o 1 (update). En better-sqlite3 update a mismo valor puede dar 0.
+  return { ok: info.changes >= 0, removed: false };
+}

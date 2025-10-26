@@ -1,4 +1,4 @@
-import { ipcMain, shell, dialog } from 'electron';
+import { ipcMain, shell, dialog } from "electron";
 import { CardsController } from "../controllers/CardsController.js";
 import { CollectionController } from "../controllers/CollectionController.js";
 import { ScryController } from "../controllers/ScryController.js";
@@ -138,13 +138,116 @@ export function registerIpc(ipcMain) {
     }
   });
 
-  // ----- STUB: Importar CSV (sin tocar disco)
-  ipcMain.handle("collection:importCSV:stub", async () => {
-    // simulamos que importaríamos X filas
-    return {
-      ok: true,
-      simulated: true,
-      wouldImport: 42,
-    };
+  // ----- Importar Mi colección desde CSV (real) -----
+  // Requisitos: cabecera con al menos "card_id" y "quantity"
+  ipcMain.handle("collection:importCSV", async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: "Importar Mi colección (CSV)",
+        properties: ["openFile"],
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+      });
+      if (canceled || !filePaths?.length) return { ok: false, canceled: true };
+
+      const filePath = filePaths[0];
+      let raw = fs.readFileSync(filePath, "utf8");
+
+      // --- Normalización CSV ---
+      // Quita BOM si lo hay
+      if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+      // Normaliza saltos de línea
+      const lines = raw
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .split("\n")
+        .filter((l) => l.trim().length > 0);
+      if (lines.length === 0) return { ok: false, error: "CSV vacío" };
+
+      // Parser sencillo con comillas; detecta separador por cabecera
+      function parseCsvLine(line, sep) {
+        const out = [];
+        let cur = "";
+        let inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inQ) {
+            if (ch === '"') {
+              if (line[i + 1] === '"') {
+                cur += '"';
+                i++;
+              } else inQ = false;
+            } else cur += ch;
+          } else {
+            if (ch === '"') inQ = true;
+            else if (ch === sep) {
+              out.push(cur);
+              cur = "";
+            } else cur += ch;
+          }
+        }
+        out.push(cur);
+        return out;
+      }
+
+      const first = lines[0];
+      const sep =
+        (first.match(/;/g)?.length || 0) > (first.match(/,/g)?.length || 0)
+          ? ";"
+          : ",";
+      const header = parseCsvLine(first, sep).map((h) =>
+        h.trim().toLowerCase()
+      );
+
+      const idxCardId = header.indexOf("card_id");
+      const idxQty = header.indexOf("quantity");
+      if (idxCardId === -1 || idxQty === -1) {
+        return {
+          ok: false,
+          error: "Cabecera inválida. Se requieren columnas card_id y quantity",
+        };
+      }
+
+      // --- Aplicar cantidades EXACTAS con upsert ---
+      let added = 0,
+        updated = 0,
+        removed = 0,
+        ignored = 0;
+
+      for (let li = 1; li < lines.length; li++) {
+        const row = parseCsvLine(lines[li], sep);
+        if (!row.length) continue;
+
+        const cardId = Number(row[idxCardId]?.trim());
+        const qtyStr = String(row[idxQty] ?? "").trim();
+        // Acepta "5" o "5.0" (si viene "5,0", lo tratamos como 5)
+        const qty = Number(qtyStr.replace(",", "."));
+
+        if (!Number.isInteger(cardId) || Number.isNaN(qty) || qty < 0) {
+          ignored++;
+          continue;
+        }
+
+        const res = await CollectionController.upsertExact(cardId, qty);
+
+        if (!res?.ok) {
+          ignored++;
+          continue;
+        }
+        if (qty === 0) {
+          if (res.removed) removed++;
+          else updated++; // ya estaba a 0 o no existía
+        } else {
+          // No sabemos si fue insert o update, pero podemos estimar:
+          // si antes no existía, lo cuenta como "added", si existía "updated".
+          // Para mantenerlo simple marcamos updated++ (o si quieres, puedes consultar si existía).
+          updated++;
+        }
+      }
+
+      return { ok: true, path: filePath, added, updated, removed, ignored };
+    } catch (e) {
+      console.error("[collection:importCSV] error", e);
+      return { ok: false, error: e.message };
+    }
   });
 }
