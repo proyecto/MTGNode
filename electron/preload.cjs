@@ -19,6 +19,9 @@ try {
     collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
 
+    // news
+    newsList: (opts) => ipcRenderer.invoke("news:list", opts),
+
     // Scry
     scrySets: () => ipcRenderer.invoke("scry:sets"),
     scrySetInfo: (code) => ipcRenderer.invoke("scry:setInfo", code),

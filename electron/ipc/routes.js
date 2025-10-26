@@ -2,6 +2,7 @@ import { ipcMain, shell, dialog } from "electron";
 import { CardsController } from "../controllers/CardsController.js";
 import { CollectionController } from "../controllers/CollectionController.js";
 import { ScryController } from "../controllers/ScryController.js";
+import { NewsController } from "../controllers/NewsController.js";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { getDbPath } from "../db/connection.js";
@@ -29,6 +30,11 @@ export function registerIpc(ipcMain) {
   );
   ipcMain.handle("collection:remove", async (_evt, { cardId }) =>
     CollectionController.remove(cardId)
+  );
+
+  // News
+  ipcMain.handle("news:list", async (_evt, { repo, per_page } = {}) =>
+    NewsController.list({ repo, per_page })
   );
 
   // Scry
