@@ -3,6 +3,7 @@ import { CardsController } from "../controllers/CardsController.js";
 import { CollectionController } from "../controllers/CollectionController.js";
 import { ScryController } from "../controllers/ScryController.js";
 import { NewsController } from "../controllers/NewsController.js";
+import { ScryCardDetailController } from "../controllers/ScryCardDetailController.js";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { getDbPath } from "../db/connection.js";
@@ -76,6 +77,11 @@ export function registerIpc(ipcMain) {
     const value = payload?.follow ?? true;
     return CardsController.followFromScry(payload, !!value);
   });
+
+  // ScryCardDetail
+  ipcMain.handle("scry:cardDetail", async (_evt, idOrName) =>
+    ScryCardDetailController.fetchCardDetails(idOrName)
+  );
 
   // Util
   ipcMain.handle("db:openFolder", async () => {

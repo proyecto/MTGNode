@@ -14,6 +14,29 @@ export default function Colecciones() {
     setSelectedCard(card);
   }
 
+  const [detailData, setDetailData] = useState(null);
+  const [detailStatus, setDetailStatus] = useState("idle"); // idle | loading | ok | error
+
+  useEffect(() => {
+    if (!selectedCard) return;
+    (async () => {
+      console.log("[DETAIL] fetching from Scryfall…");
+      setDetailStatus("loading");
+      setDetailData(null);
+      const res = await window.api.scryCardDetail(
+        selectedCard.id || selectedCard.name
+      );
+      if (res?.ok) {
+        console.log("[DETAIL] fetched OK");
+        setDetailData(res.data);
+        setDetailStatus("ok");
+      } else {
+        console.warn("[DETAIL] fetch error", res?.error);
+        setDetailStatus("error");
+      }
+    })();
+  }, [selectedCard]);
+
   function closeDetail() {
     console.log("[DETAIL] close");
     setSelectedCard(null);
@@ -264,73 +287,134 @@ export default function Colecciones() {
               {selectedCard.rarity || "—"}
             </div>
 
-<div style={{ display:'flex', gap:16, marginTop:12 }}>
-  {/* Imagen de la carta */}
-  {selectedCard.image_normal ? (
-    <img
-      src={selectedCard.image_normal}
-      alt={selectedCard.name}
-      style={{
-        width: 223,
-        height: 310,
-        objectFit: 'cover',
-        borderRadius: 8,
-        border: '1px solid #eee'
-      }}
-    />
-  ) : (
-    <div style={{
-      width:223, height:310, display:'flex',
-      alignItems:'center', justifyContent:'center',
-      background:'#fafafa', border:'1px solid #eee', borderRadius:8, color:'#999'
-    }}>
-      Sin imagen
-    </div>
-  )}
+            <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
+              {/* Imagen de la carta */}
+              {selectedCard.image_normal ? (
+                <img
+                  src={selectedCard.image_normal}
+                  alt={selectedCard.name}
+                  style={{
+                    width: 223,
+                    height: 310,
+                    objectFit: "cover",
+                    borderRadius: 8,
+                    border: "1px solid #eee",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 223,
+                    height: 310,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#fafafa",
+                    border: "1px solid #eee",
+                    borderRadius: 8,
+                    color: "#999",
+                  }}
+                >
+                  Sin imagen
+                </div>
+              )}
 
-  {/* Datos de la carta */}
-  <div style={{ flex: 1, display:'flex', flexDirection:'column', gap:8 }}>
-    <div style={{ fontWeight:700, fontSize:18 }}>{selectedCard.name}</div>
-    <div style={{ fontSize:14, opacity:.8 }}>
-      {selectedCard.set_name || '—'} · Nº {selectedCard.collector_number || '—'}
-    </div>
-    <div style={{ fontSize:13 }}>
-      <b>Rareza:</b> {selectedCard.rarity || '—'}
-    </div>
+              {/* Datos de la carta */}
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 18 }}>
+                  {selectedCard.name}
+                </div>
+                <div style={{ fontSize: 14, opacity: 0.8 }}>
+                  {selectedCard.set_name || "—"} · Nº{" "}
+                  {selectedCard.collector_number || "—"}
+                </div>
+                <div style={{ fontSize: 13 }}>
+                  <b>Rareza:</b> {selectedCard.rarity || "—"}
+                </div>
 
-    <div style={{ fontSize:13 }}>
-      <b>Precio:</b>{' '}
-      {typeof selectedCard.eur === 'number'
-        ? `${selectedCard.eur} €`
-        : '—'}{' '}
-      {typeof selectedCard.eur_foil === 'number'
-        ? `(Foil ${selectedCard.eur_foil} €)`
-        : ''}
-    </div>
+                <div style={{ fontSize: 13 }}>
+                  <b>Precio:</b>{" "}
+                  {typeof selectedCard.eur === "number"
+                    ? `${selectedCard.eur} €`
+                    : "—"}{" "}
+                  {typeof selectedCard.eur_foil === "number"
+                    ? `(Foil ${selectedCard.eur_foil} €)`
+                    : ""}
+                </div>
 
-    {selectedCard.type_line && (
-      <div style={{ fontSize:13, marginTop:8 }}>
-        <b>Tipo:</b> {selectedCard.type_line}
-      </div>
-    )}
+                {selectedCard.type_line && (
+                  <div style={{ fontSize: 13, marginTop: 8 }}>
+                    <b>Tipo:</b> {selectedCard.type_line}
+                  </div>
+                )}
 
-    {selectedCard.oracle_text && (
-      <div style={{
-        marginTop:8,
-        fontSize:13,
-        lineHeight:1.5,
-        whiteSpace:'pre-wrap',
-        background:'#fafafa',
-        padding:8,
-        borderRadius:8,
-        border:'1px solid #eee'
-      }}>
-        {selectedCard.oracle_text}
-      </div>
-    )}
-  </div>
-</div>
-
+                {selectedCard.oracle_text && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      whiteSpace: "pre-wrap",
+                      background: "#fafafa",
+                      padding: 8,
+                      borderRadius: 8,
+                      border: "1px solid #eee",
+                    }}
+                  >
+                    {selectedCard.oracle_text}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Datos extra de Scryfall */}
+            <div style={{ marginTop: 16, fontSize: 13 }}>
+              {detailStatus === "loading" && (
+                <div style={{ opacity: 0.7 }}>
+                  (DEBUG) Cargando datos ampliados…
+                </div>
+              )}
+              {detailStatus === "error" && (
+                <div style={{ color: "#b00020" }}>
+                  (DEBUG) Error al cargar detalles.
+                </div>
+              )}
+              {detailStatus === "ok" && detailData && (
+                <div style={{ marginTop: 8 }}>
+                  <div>
+                    <b>Artista:</b> {detailData.artist || "—"}
+                  </div>
+                  <div>
+                    <b>Color identidad:</b>{" "}
+                    {detailData.color_identity?.join(", ") || "—"}
+                  </div>
+                  <div>
+                    <b>Legalidades:</b>{" "}
+                    {Object.entries(detailData.legalities || {})
+                      .filter(([_, v]) => v === "legal")
+                      .map(([f]) => f)
+                      .join(", ") || "—"}
+                  </div>
+                  {detailData.flavor_text && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontStyle: "italic",
+                        opacity: 0.8,
+                      }}
+                    >
+                      “{detailData.flavor_text}”
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -405,23 +489,23 @@ const countBadge = {
 };
 
 const overlay = {
-  position: 'fixed',
+  position: "fixed",
   inset: 0,
-  background: 'rgba(0,0,0,0.4)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+  background: "rgba(0,0,0,0.4)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
   zIndex: 1000,
-  padding: 16
+  padding: 16,
 };
 
 const panel = {
-  width: 'min(720px, 95vw)',
-  maxHeight: '85vh',
-  overflowY: 'auto',
-  background: '#fff',
-  border: '1px solid #e5e5e5',
+  width: "min(720px, 95vw)",
+  maxHeight: "85vh",
+  overflowY: "auto",
+  background: "#fff",
+  border: "1px solid #e5e5e5",
   borderRadius: 12,
   padding: 16,
-  boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
+  boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
 };
