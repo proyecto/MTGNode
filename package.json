@@ -10,7 +10,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "scry:import": "ELECTRON_RUN_AS_NODE=1 electron scripts/import-scryfall.mjs",
-    "dist": "electron-builder -m"
+    "dist": "electron-builder -m",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "build": {
     "appId": "com.tuempresa.mtgnode",
