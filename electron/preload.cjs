@@ -27,9 +27,11 @@ try {
     scrySetInfo: (code) => ipcRenderer.invoke("scry:setInfo", code),
     scryCardsBySet: (code) => ipcRenderer.invoke("scry:cardsBySet", code),
     scryUpdateBulk: () => ipcRenderer.invoke("scry:updateBulk"),
+    scrySearchByName: (opts) => ipcRenderer.invoke("scry:searchByName", opts),
 
     // ScryCardDetail
-    scryCardDetail: (idOrName) => ipcRenderer.invoke("scry:cardDetail", idOrName),
+    scryCardDetail: (idOrName) =>
+      ipcRenderer.invoke("scry:cardDetail", idOrName),
 
     // desde scry_cards -> actions
     scryAddToCollection: (payload) =>

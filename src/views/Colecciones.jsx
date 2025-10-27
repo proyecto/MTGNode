@@ -2,24 +2,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 export default function Colecciones() {
-  // --------- estado base (sets, cartas, búsqueda) ----------
+  // --------- estado base ----------
   const [sets, setSets] = useState([]);
-  const [selected, setSelected] = useState('');  // código de set
-  const [meta, setMeta] = useState(null);        // { code, name, released_at, count }
+  const [selected, setSelected] = useState('');
+  const [meta, setMeta] = useState(null);
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
 
-  const [q, setQ] = useState(''); // búsqueda
+  // --------- búsqueda global ----------
+  const [globalMode, setGlobalMode] = useState(false);
+  const [globalItems, setGlobalItems] = useState([]);
+  const [globalLoading, setGlobalLoading] = useState(false);
 
   // --------- detalle / scryfall extra ----------
   const [selectedCard, setSelectedCard] = useState(null);
   const [detailData, setDetailData] = useState(null);
-  const [detailStatus, setDetailStatus] = useState('idle'); // idle|loading|ok|error
+  const [detailStatus, setDetailStatus] = useState('idle');
 
   // --------- zoom imagen ----------
   const [imageZoomSrc, setImageZoomSrc] = useState(null);
 
-  // --------- responsive (2 col -> 1 col) ----------
+  // --------- responsive ----------
   const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 760px)');
@@ -29,11 +33,11 @@ export default function Colecciones() {
     return () => mq.removeEventListener?.('change', apply);
   }, []);
 
-  // --------- acciones en popup ----------
+  // --------- acciones ----------
   const [actionStatus, setActionStatus] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
 
-  // --------- carga de sets al abrir ----------
+  // --------- carga sets ----------
   useEffect(() => {
     (async () => {
       const list = await window.api.scrySets();
@@ -42,7 +46,7 @@ export default function Colecciones() {
     })();
   }, []);
 
-  // --------- carga de cartas del set seleccionado ----------
+  // --------- carga cartas del set ----------
   useEffect(() => {
     if (!selected) return;
     (async () => {
@@ -52,7 +56,7 @@ export default function Colecciones() {
       const rows = await window.api.scryCardsBySet(selected);
       setCards(rows || []);
       setLoading(false);
-      setQ(''); // limpiar búsqueda al cambiar de set
+      setQ('');
     })();
   }, [selected]);
 
@@ -79,6 +83,8 @@ export default function Colecciones() {
     );
   }, [q, cards]);
 
+  const listSource = globalMode ? globalItems : filtered;
+
   async function recargarActual() {
     if (!selected) return;
     setLoading(true);
@@ -104,7 +110,7 @@ export default function Colecciones() {
     setActionBusy(false);
   }
 
-  // --------- fetch extra a scryfall al abrir el detalle ----------
+  // --------- fetch scryfall ----------
   useEffect(() => {
     if (!selectedCard) return;
     (async () => {
@@ -113,7 +119,6 @@ export default function Colecciones() {
       setDetailData(null);
       const res = await window.api.scryCardDetail(selectedCard.id || selectedCard.name);
       if (res?.ok) {
-        console.log('[DETAIL] fetched OK');
         setDetailData(res.data);
         setDetailStatus('ok');
       } else {
@@ -123,27 +128,23 @@ export default function Colecciones() {
     })();
   }, [selectedCard]);
 
-  // --------- navegación dentro del popup ----------
+  // --------- navegación ----------
   const currentIndex = useMemo(() => (
-    selectedCard ? filtered.findIndex(x => x.id === selectedCard.id) : -1
-  ), [selectedCard, filtered]);
+    selectedCard ? listSource.findIndex(x => x.id === selectedCard.id) : -1
+  ), [selectedCard, listSource]);
 
   function goRel(delta) {
     if (!selectedCard) return;
     const i = currentIndex;
     if (i < 0) return;
     const j = i + delta;
-    if (j < 0 || j >= filtered.length) {
-      console.log('[DETAIL] nav blocked', { i, delta, len: filtered.length });
-      return;
-    }
-    console.log('[DETAIL] nav', { from: i, to: j, id: filtered[j].id });
-    setSelectedCard(filtered[j]);
+    if (j < 0 || j >= listSource.length) return;
+    setSelectedCard(listSource[j]);
   }
   const goPrev = () => goRel(-1);
   const goNext = () => goRel(1);
 
-  // --------- acciones rápidas en el popup ----------
+  // --------- acciones rápidas ----------
   async function addToCollectionFromDetail() {
     if (!selectedCard) return;
     setActionBusy(true);
@@ -155,8 +156,7 @@ export default function Colecciones() {
       eur: selectedCard.eur,
       qty: 1
     });
-    console.log('[DETAIL] addToCollection result', res);
-    setActionStatus(res?.ok ? 'Añadida a Mi colección ✅' : `Error al añadir ❌ ${res?.error || ''}`);
+    setActionStatus(res?.ok ? 'Añadida a Mi colección ✅' : `Error ❌ ${res?.error || ''}`);
     setActionBusy(false);
     setTimeout(() => setActionStatus(''), 2000);
   }
@@ -172,32 +172,24 @@ export default function Colecciones() {
       eur: selectedCard.eur,
       follow: true
     });
-    console.log('[DETAIL] follow result', res);
-    setActionStatus(res?.ok ? 'Marcada como seguida ⭐' : `Error al seguir ❌ ${res?.error || ''}`);
+    setActionStatus(res?.ok ? 'Marcada como seguida ⭐' : `Error ❌ ${res?.error || ''}`);
     setActionBusy(false);
     setTimeout(() => setActionStatus(''), 2000);
   }
 
-  // --------- zoom imagen ----------
-  function openImageZoom(src) {
-    if (!src) return;
-    console.log('[DETAIL] image zoom open');
-    setImageZoomSrc(src);
-  }
-  function closeImageZoom() {
-    console.log('[DETAIL] image zoom close');
-    setImageZoomSrc(null);
-  }
+  // --------- zoom ----------
+  function openImageZoom(src) { if (src) setImageZoomSrc(src); }
+  function closeImageZoom() { setImageZoomSrc(null); }
 
   // --------- render ----------
   return (
-    <div style={{ display:'grid', gap:16 }}>
+    <div style={{ display: 'grid', gap: 16 }}>
       {/* Selector de set */}
-      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-        <label style={{ fontSize:14, opacity:.8 }}>Colección</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <label style={{ fontSize: 14, opacity: .8 }}>Colección</label>
         <select
           value={selected}
-          onChange={e => setSelected(e.target.value)}
+          onChange={e => { setSelected(e.target.value); setGlobalMode(false); }}
           style={select}
         >
           {sets.map(s => (
@@ -210,14 +202,26 @@ export default function Colecciones() {
       </div>
 
       {/* Meta del set */}
-      <div style={metaBox}>
-        <div style={{ fontSize:16, fontWeight:700 }}>
-          {meta?.name || '—'} <span style={{ opacity:.6 }}>({meta?.code?.toUpperCase() || '—'})</span>
+      {!globalMode && (
+        <div style={metaBox}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>
+            {meta?.name || '—'} <span style={{ opacity: .6 }}>({meta?.code?.toUpperCase() || '—'})</span>
+          </div>
+          <div style={{ fontSize: 13, opacity: .8 }}>
+            Año de publicación: <b>{year}</b> · Cartas: <b>{meta?.count ?? 0}</b>
+          </div>
         </div>
-        <div style={{ fontSize:13, opacity:.8 }}>
-          Año de publicación: <b>{year}</b> · Número de cartas: <b>{meta?.count ?? 0}</b>
+      )}
+
+      {/* Meta global */}
+      {globalMode && (
+        <div style={{ ...metaBox, background: '#f5faff', borderColor: '#cfe8ff' }}>
+          <div style={{ fontWeight: 700 }}>Resultados globales para “{q}”</div>
+          <div style={{ fontSize: 13, opacity: .8 }}>
+            Coincidencias: <b>{globalItems.length}</b> · Todas las colecciones
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Búsqueda */}
       <div style={searchBar}>
@@ -228,78 +232,108 @@ export default function Colecciones() {
           style={searchInput}
         />
         {q && <button onClick={() => setQ('')} style={clearBtn} title="Limpiar">✕</button>}
+
+        <button
+          onClick={async () => {
+            if (!q.trim()) { alert('Introduce un término de búsqueda'); return; }
+            setGlobalLoading(true);
+            const res = await window.api.scrySearchByName({ q, limit: 100 });
+            setGlobalLoading(false);
+            if (res?.ok) {
+              setGlobalItems(res.items || []);
+              setGlobalMode(true);
+              console.log('[GLOBAL SEARCH] ok', { q, total: res.total });
+              alert(`(Global) ${res.total} coincidencias para “${q}”`);
+            } else {
+              alert(`(Global) Error: ${res?.error || 'desconocido'}`);
+            }
+          }}
+          style={btn}
+        >
+          Buscar global
+        </button>
+
+        {globalMode && (
+          <button
+            onClick={() => { setGlobalMode(false); setGlobalItems([]); }}
+            style={btn}
+          >
+            Salir búsqueda global
+          </button>
+        )}
+
         <div style={countBadge}>
-          {loading ? 'Cargando…' : `${filtered.length} de ${cards.length}`}
+          {globalMode
+            ? (globalLoading ? 'Buscando…' : `${listSource.length} resultados globales`)
+            : (loading ? 'Cargando…' : `${filtered.length} de ${cards.length}`)}
         </div>
       </div>
 
       {/* Lista */}
       <div style={listWrap}>
-        {loading ? (
-          <div style={{ opacity:.7, padding:12 }}>Cargando cartas…</div>
-        ) : !cards.length ? (
-          <div style={{ opacity:.7, padding:12 }}>No hay cartas en este set.</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ opacity:.7, padding:12 }}>Sin resultados para “{q}”.</div>
-        ) : (
-          <ul style={list}>
-            {filtered.map(c => (
-              <li key={c.id} style={row}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
-                  <div style={{ display:'flex', gap:12 }}>
-                    <div style={numberBadge}>{c.collector_number || '—'}</div>
-                    <div>
-                      <div
-                        style={{ fontWeight:600, cursor:'pointer', color:'#007aff' }}
-                        onClick={() => openDetail(c)}
-                      >
-                        {c.name}
-                      </div>
-                      <div style={{ fontSize:12, opacity:.75 }}>
-                        {c.rarity || '—'}
-                        {typeof c.eur === 'number' ? ` · ${c.eur} €` : ''}
-                        {typeof c.eur_foil === 'number' ? ` · foil ${c.eur_foil} €` : ''}
+        {globalMode ? (
+          globalLoading ? (
+            <div style={{ opacity: .7, padding: 12 }}>Buscando en todas las colecciones…</div>
+          ) : listSource.length === 0 ? (
+            <div style={{ opacity: .7, padding: 12 }}>Sin resultados globales para “{q}”.</div>
+          ) : (
+            <ul style={list}>
+              {listSource.map(c => (
+                <li key={c.id} style={row}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <div style={numberBadge}>{c.collector_number || '—'}</div>
+                      <div>
+                        <div
+                          style={{ fontWeight: 600, cursor: 'pointer', color: '#007aff' }}
+                          onClick={() => openDetail(c)}
+                        >
+                          {c.name}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: .75 }}>
+                          {c.set_name || '—'} · {c.rarity || '—'}
+                          {typeof c.eur === 'number' ? ` · ${c.eur} €` : ''}
+                        </div>
                       </div>
                     </div>
                   </div>
-
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button
-                      onClick={async () => {
-                        await window.api.scryAddToCollection({
-                          name: c.name,
-                          set_name: meta?.name || '',
-                          rarity: c.rarity,
-                          eur: c.eur,
-                          qty: 1
-                        });
-                      }}
-                      style={btn}
-                      title="Añadir a Mi colección"
-                    >
-                      📦 Añadir
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        await window.api.scryFollow({
-                          name: c.name,
-                          set_name: meta?.name || '',
-                          rarity: c.rarity,
-                          eur: c.eur,
-                          follow: true
-                        });
-                      }}
-                      style={btn}
-                      title="Seguir"
-                    >
-                      ⭐ Seguir
-                    </button>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : (
+          loading ? (
+            <div style={{ opacity: .7, padding: 12 }}>Cargando cartas…</div>
+          ) : !cards.length ? (
+            <div style={{ opacity: .7, padding: 12 }}>No hay cartas en este set.</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ opacity: .7, padding: 12 }}>Sin resultados para “{q}”.</div>
+          ) : (
+            <ul style={list}>
+              {listSource.map(c => (
+                <li key={c.id} style={row}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <div style={numberBadge}>{c.collector_number || '—'}</div>
+                      <div>
+                        <div
+                          style={{ fontWeight: 600, cursor: 'pointer', color: '#007aff' }}
+                          onClick={() => openDetail(c)}
+                        >
+                          {c.name}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: .75 }}>
+                          {c.rarity || '—'}
+                          {typeof c.eur === 'number' ? ` · ${c.eur} €` : ''}
+                          {typeof c.eur_foil === 'number' ? ` · foil ${c.eur_foil} €` : ''}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </div>
 
@@ -319,12 +353,12 @@ export default function Colecciones() {
         >
           <div style={panel}>
             <div style={panelHeader}>
-              <div style={{ fontWeight:700, fontSize:16, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedCard.name}
               </div>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button style={btn} onClick={goPrev} disabled={currentIndex <= 0}>◀︎ Anterior</button>
-                <button style={btn} onClick={goNext} disabled={currentIndex < 0 || currentIndex >= filtered.length - 1}>Siguiente ▶︎</button>
+                <button style={btn} onClick={goNext} disabled={currentIndex >= listSource.length - 1}>Siguiente ▶︎</button>
                 <button style={btn} onClick={addToCollectionFromDetail} disabled={actionBusy}>📦 Añadir</button>
                 <button style={btn} onClick={followFromDetail} disabled={actionBusy}>⭐ Seguir</button>
                 <button style={btn} onClick={closeDetail}>Cerrar</button>
@@ -334,8 +368,7 @@ export default function Colecciones() {
             <div style={panelBody}>
               {actionStatus && <div style={statusMsg}>{actionStatus}</div>}
 
-              <div style={{ display:'flex', gap:16, flexDirection: isNarrow ? 'column' : 'row' }}>
-                {/* Col izquierda: imagen */}
+              <div style={{ display: 'flex', gap: 16, flexDirection: isNarrow ? 'column' : 'row' }}>
                 <div style={colLeft}>
                   {selectedCard.image_normal ? (
                     <img
@@ -349,7 +382,6 @@ export default function Colecciones() {
                   )}
                 </div>
 
-                {/* Col derecha: datos */}
                 <div style={colRight}>
                   <div style={section}>
                     <div style={sectionTitle}>Datos</div>
@@ -363,9 +395,6 @@ export default function Colecciones() {
                         {typeof selectedCard.eur_foil === 'number' ? `(Foil ${selectedCard.eur_foil} €)` : ''}
                       </span>
                     </div>
-                    {selectedCard.type_line && (
-                      <div style={kv}><b>Tipo:</b> <span>{selectedCard.type_line}</span></div>
-                    )}
                   </div>
 
                   {selectedCard.oracle_text && (
@@ -378,24 +407,15 @@ export default function Colecciones() {
                   <div style={section}>
                     <div style={sectionTitle}>Info ampliada</div>
                     {detailStatus === 'loading' && (
-                      <div style={{ fontSize:13, opacity:.8 }}>Cargando datos ampliados…</div>
+                      <div style={{ fontSize: 13, opacity: .8 }}>Cargando datos ampliados…</div>
                     )}
                     {detailStatus === 'error' && (
-                      <div style={errorBox}>(DEBUG) Error al cargar detalles.</div>
+                      <div style={errorBox}>Error al cargar detalles.</div>
                     )}
                     {detailStatus === 'ok' && detailData && (
-                      <div style={{ display:'grid', gap:6 }}>
+                      <div style={{ display: 'grid', gap: 6 }}>
                         <div style={kv}><b>Artista:</b> <span>{detailData.artist || '—'}</span></div>
                         <div style={kv}><b>Color identidad:</b> <span>{detailData.color_identity?.join(', ') || '—'}</span></div>
-                        <div style={kv}>
-                          <b>Legal en:</b>{' '}
-                          <span>
-                            {Object.entries(detailData.legalities || {})
-                              .filter(([_, v]) => v === 'legal')
-                              .map(([f]) => f)
-                              .join(', ') || '—'}
-                          </span>
-                        </div>
                         {detailData.flavor_text && (
                           <div style={flavorBox}>“{detailData.flavor_text}”</div>
                         )}
@@ -409,7 +429,7 @@ export default function Colecciones() {
         </div>
       )}
 
-      {/* Overlay Zoom Imagen */}
+      {/* Zoom Imagen */}
       {imageZoomSrc && (
         <div
           style={zoomOverlay}
@@ -417,12 +437,7 @@ export default function Colecciones() {
           onKeyDown={(e) => { if (e.key === 'Escape') closeImageZoom(); }}
           tabIndex={-1}
         >
-          <img
-            src={imageZoomSrc}
-            alt="Carta"
-            style={zoomImg}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <img src={imageZoomSrc} alt="Carta" style={zoomImg} onClick={(e) => e.stopPropagation()} />
           <button style={zoomCloseBtn} onClick={closeImageZoom}>Cerrar</button>
         </div>
       )}
@@ -431,57 +446,118 @@ export default function Colecciones() {
 }
 
 // ---------------- estilos ----------------
-const select = {
-  padding: '8px 10px',
+const select = { padding: '8px 10px', borderRadius: 8, border: '1px solid #e5e5e5' };
+
+const btn = {
+  padding: '6px 10px',
   borderRadius: 8,
   border: '1px solid #e5e5e5',
-  background: '#fff',
-  minWidth: 260
+  background: '#f5f5f7',
+  cursor: 'pointer'
 };
-const btn = {
-  padding:'6px 10px',
-  borderRadius:8,
-  border:'1px solid #e5e5e5',
-  background:'#f5f5f7',
-  cursor:'pointer'
-};
-const metaBox = { background:'#fff', border:'1px solid #eee', borderRadius:12, padding:12 };
-const listWrap = { background:'#fff', border:'1px solid #eee', borderRadius:12, height:'60vh', overflowY:'auto' };
-const list = { listStyle:'none', padding:0, margin:0 };
-const row = { padding:'10px 12px', borderBottom:'1px solid #f0f0f0' };
-const numberBadge = { minWidth:44, textAlign:'center', border:'1px solid #eee', borderRadius:8, padding:'6px 8px', background:'#fafafa' };
 
-const searchBar = { display:'grid', gridTemplateColumns:'1fr auto auto', alignItems:'center', gap:8 };
-const searchInput = { padding:'10px 12px', borderRadius:10, border:'1px solid #e5e5e5', outline:'none', background:'#fff' };
-const clearBtn = { padding:'8px 12px', borderRadius:8, border:'1px solid #e5e5e5', background:'#fff', cursor:'pointer' };
-const countBadge = { fontSize:12, opacity:.75, padding:'0 6px' };
+const countBadge = {
+  marginLeft: 'auto',
+  fontSize: 12,
+  padding: '4px 8px',
+  borderRadius: 8,
+  background: '#f5f5f7',
+  border: '1px solid #e5e5e5'
+};
+
+const metaBox = {
+  border: '1px solid #ddd',
+  borderRadius: 12,
+  padding: 12,
+  background: '#fafafa'
+};
+
+const searchBar = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8
+};
+
+const searchInput = {
+  flex: 1,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid #ccc'
+};
+
+const clearBtn = {
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  fontSize: 16,
+  opacity: .5
+};
+
+const listWrap = {
+  maxHeight: '70vh',
+  overflowY: 'auto',
+  border: '1px solid #e5e5e5',
+  borderRadius: 8,
+  background: '#fff'
+};
+
+const list = {
+  listStyle: 'none',
+  margin: 0,
+  padding: 0
+};
+
+const row = {
+  borderBottom: '1px solid #eee',
+  padding: '8px 12px'
+};
+
+const numberBadge = {
+  fontSize: 12,
+  background: '#f1f1f1',
+  borderRadius: 6,
+  padding: '2px 6px',
+  alignSelf: 'flex-start'
+};
 
 const overlay = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(0,0,0,0.4)',
   display: 'flex',
-  alignItems: 'center',
   justifyContent: 'center',
+  alignItems: 'center',
   zIndex: 1000,
-  padding: 16
+  padding: 20
 };
+
 const panel = {
-  width: 'min(860px, 95vw)',
-  maxHeight: '85vh',
-  overflow: 'hidden',
   background: '#fff',
-  border: '1px solid #e5e5e5',
   borderRadius: 12,
-  boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
+  maxWidth: 900,
+  width: '100%',
+  maxHeight: '90vh',
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden'
 };
+
 const panelHeader = {
-  position: 'sticky', top: 0, zIndex: 1,
-  display: 'flex', justifyContent:'space-between', alignItems:'center', gap:12,
-  padding: 12, background:'#fff', borderBottom:'1px solid #f0f0f0',
-  borderTopLeftRadius:12, borderTopRightRadius:12
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '10px 14px',
+  borderBottom: '1px solid #eee',
+  background: '#f8f8f8',
+  position: 'sticky',
+  top: 0,
+  zIndex: 2
 };
-const panelBody = { padding:16, overflowY:'auto', maxHeight:'calc(85vh - 54px)' };
+
+const panelBody = {
+  padding: 16,
+  overflowY: 'auto'
+};
 
 const statusMsg = {
   margin: '0 0 12px 0',
@@ -493,46 +569,60 @@ const statusMsg = {
   borderRadius: 8
 };
 
-const colLeft = { minWidth: 223 };
-const colRight = { minWidth: 0, flex: 1 };
+const colLeft = { flex: '0 0 auto' };
+const colRight = { flex: 1 };
 
 const cardImg = {
-  width: 223, height: 310, objectFit: 'cover',
-  borderRadius: 8, border: '1px solid #eee', cursor: 'zoom-in'
-};
-const noImgBox = {
-  width:223, height:310, display:'flex',
-  alignItems:'center', justifyContent:'center',
-  background:'#fafafa', border:'1px solid #eee', borderRadius:8, color:'#999'
+  width: 260,
+  borderRadius: 12,
+  boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+  cursor: 'zoom-in'
 };
 
-const section = { display:'grid', gap:8, marginBottom:16 };
-const sectionTitle = { fontSize:12, textTransform:'uppercase', letterSpacing:'.06em', opacity:.7 };
-const kv = { display:'flex', gap:6, fontSize:13, alignItems:'baseline', lineHeight:1.4 };
-const rulesBox = {
-  whiteSpace:'pre-wrap', lineHeight:1.5, fontSize:13,
-  background:'#fafafa', padding:8, borderRadius:8, border:'1px solid #eee'
+const noImgBox = {
+  width: 260,
+  height: 360,
+  borderRadius: 12,
+  background: '#f5f5f5',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#888'
 };
-const flavorBox = { marginTop:6, fontStyle:'italic', opacity:.85 };
+
+const section = { marginBottom: 12 };
+const sectionTitle = { fontSize: 14, fontWeight: 700, marginBottom: 6 };
+const kv = { fontSize: 13, display: 'flex', gap: 6 };
+const rulesBox = { fontSize: 13, whiteSpace: 'pre-wrap', background: '#fafafa', borderRadius: 8, padding: 8 };
+const flavorBox = { fontStyle: 'italic', opacity: .8, marginTop: 6 };
+const errorBox = { fontSize: 13, color: '#b00020' };
 
 const zoomOverlay = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(0,0,0,0.8)',
   display: 'flex',
-  alignItems: 'center',
   justifyContent: 'center',
-  zIndex: 1100,
-  padding: 12
+  alignItems: 'center',
+  zIndex: 2000
 };
+
 const zoomImg = {
-  maxWidth: '95vw', maxHeight: '95vh',
-  borderRadius: 8, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', display:'block'
+  maxHeight: '90vh',
+  maxWidth: '90vw',
+  borderRadius: 12,
+  boxShadow: '0 2px 10px rgba(0,0,0,0.6)'
 };
+
 const zoomCloseBtn = {
-  position: 'fixed', top: 16, right: 16,
-  padding:'8px 12px', borderRadius:8,
-  border:'1px solid rgba(255,255,255,0.35)',
-  background:'rgba(255,255,255,0.1)', color:'#fff',
-  cursor:'pointer', backdropFilter: 'blur(6px)'
+  position: 'fixed',
+  top: 20,
+  right: 20,
+  padding: '8px 12px',
+  borderRadius: 8,
+  border: '1px solid #fff',
+  background: 'rgba(255,255,255,0.2)',
+  color: '#fff',
+  cursor: 'pointer',
+  fontWeight: 600
 };

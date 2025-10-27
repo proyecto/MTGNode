@@ -6,7 +6,7 @@ import { NewsController } from "../controllers/NewsController.js";
 import { ScryCardDetailController } from "../controllers/ScryCardDetailController.js";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { getDbPath } from "../db/connection.js";
+import { getDbPath, db } from "../db/connection.js";
 import fs from "node:fs";
 
 export function registerIpc(ipcMain) {
@@ -71,17 +71,44 @@ export function registerIpc(ipcMain) {
     const qty = Number(payload?.qty) || 1;
     return CollectionController.addFromScry(payload, qty);
   });
-
   ipcMain.handle("scry:follow", async (_evt, payload) => {
     // payload: { name, set_name, rarity, eur, follow?: boolean }
     const value = payload?.follow ?? true;
     return CardsController.followFromScry(payload, !!value);
   });
-
   // ScryCardDetail
   ipcMain.handle("scry:cardDetail", async (_evt, idOrName) =>
     ScryCardDetailController.fetchCardDetails(idOrName)
   );
+  // ----- Búsqueda real global en scry_cards -----
+  ipcMain.handle("scry:searchByName", async (_evt, { q, limit = 50 } = {}) => {
+    try {
+      if (!q || !q.trim()) return { ok: false, error: "q vacío" };
+
+      const conn = db(); // ✅ igual que en tus modelos
+      const stmt = conn.prepare(`
+      SELECT
+        id,
+        name,
+        set_name,
+        collector_number,
+        rarity,
+        eur,
+        eur_foil,
+        image_small
+      FROM scry_cards
+      WHERE LOWER(name) LIKE LOWER(?)
+      ORDER BY name ASC
+      LIMIT ?
+    `);
+      const rows = stmt.all(`%${q}%`, limit);
+
+      return { ok: true, total: rows.length, items: rows };
+    } catch (e) {
+      console.error("[scry:searchByName] error", e);
+      return { ok: false, error: e.message };
+    }
+  });
 
   // Util
   ipcMain.handle("db:openFolder", async () => {
