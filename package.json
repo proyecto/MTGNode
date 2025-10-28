@@ -21,7 +21,14 @@
       "main.js",
       "electron/**",
       "package.json",
-      "!**/*.map"
+      "!**/*.map",
+      "!dist_electron/**",
+      "!**/*.dmg",
+      "!**/*.zip",
+      "!**/*.icns",
+      "!**/*.app",
+      "!**/*.asar",
+      "!**/*.log"
     ],
     "mac": {
       "target": [
