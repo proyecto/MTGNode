@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerIpc } from './electron/ipc/routes.js';
 import { CardsController } from './electron/controllers/CardsController.js';
+import { installAppMenu } from './electron/menu.js'; // ⬅️ importa el menú
+
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +37,9 @@ function createWindow() {
     }
   });
 
+  // ⬅️ instala el menú nativo
+  installAppMenu(win);
+
   const devUrl = process.env.ELECTRON_START_URL;
   if (devUrl) {
     console.log('[MAIN] Loading DEV URL:', devUrl);
@@ -50,24 +55,9 @@ registerIpc(ipcMain);
 
 process.on('unhandledRejection', (r) => console.error('[UNHANDLED REJECTION]', r));
 
-function createAppMenu() {
-  const template = [
-    {
-      label: 'File',
-      submenu: [
-        { role: 'quit', label: 'Quit' } // en macOS mostrará "MTGNode → Quit"
-      ]
-    }
-  ];
-
-  const menu = Menu.buildFromTemplate(template);
-  Menu.setApplicationMenu(menu);
-}
-
 app.whenReady().then(async () => {
   await bootSeed();
   createWindow();
-  createAppMenu();
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
