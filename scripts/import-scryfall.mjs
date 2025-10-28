@@ -13,12 +13,15 @@ import StreamArrayMod from 'stream-json/streamers/StreamArray.js';
 const { parser } = StreamJson;
 const { streamArray } = StreamArrayMod;
 
-const DB_PATH = process.env.MTG_DB_PATH
-  ? process.env.MTG_DB_PATH
-  : path.join(process.cwd(), 'data', 'mtg.sqlite');
+const dbPath = process.env.MTG_DB_PATH || path.join(process.cwd(), 'data', 'mtg.sqlite');
+console.log('[import] DB_PATH:', dbPath);
 
-console.log('[import] DB_PATH:', DB_PATH);
-const db = new Database(DB_PATH);
+// ✅ asegurar que existe la carpeta
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+// ahora sí
+const db = new Database(dbPath);
+
 db.pragma('journal_mode = DELETE');
 
 function ensureSchema() {
