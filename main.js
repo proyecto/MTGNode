@@ -1,15 +1,12 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain} from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerIpc } from './electron/ipc/routes.js';
 import { CardsController } from './electron/controllers/CardsController.js';
-import { installAppMenu } from './electron/menu.js'; // ⬅️ importa el menú
-
-
+import { installAppMenu } from './electron/menu.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const isDev = !!process.env.ELECTRON_START_URL;
 let win;
 
@@ -25,6 +22,9 @@ async function bootSeed() {
 }
 
 function createWindow() {
+  const preloadPath = path.join(__dirname, 'electron', 'preload.cjs');
+  const indexPath   = fileURLToPath(new URL('./dist/index.html', import.meta.url));
+
   win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -33,23 +33,53 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: isDev ? false : true,
-      preload: path.join(__dirname, 'electron', 'preload.cjs') // CJS estable
+      preload: preloadPath
     }
   });
 
-  // ⬅️ instala el menú nativo
   installAppMenu(win);
 
+  // --- LOGS ÚTILES ---
+  console.log('[VERSIONS]', process.versions);
+  console.log('[PATHS]', { appPath: app.getAppPath(), __dirname, preloadPath, indexPath });
+
+  // --- Comprobaciones antes de cargar (para detectar pantalla blanca por ruta) ---
+  try {
+    const fs = require('node:fs');
+    console.log('[CHECK] preload exists?', fs.existsSync(preloadPath));
+    console.log('[CHECK] index exists?', fs.existsSync(indexPath));
+  } catch (e) {
+    console.warn('[CHECK] fs.existsSync failed', e);
+  }
+
+  // --- Eventos de diagnóstico de carga ---
+  win.webContents.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+    console.error('[did-fail-load]', { code, desc, url, isMainFrame });
+  });
+  win.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[render-process-gone]', details);
+  });
+  win.webContents.on('console-message', (_e, level, message, line, srcId) => {
+    console.log('[renderer]', { level, message, line, srcId });
+  });
+
+  // --- Carga ---
   const devUrl = process.env.ELECTRON_START_URL;
   if (devUrl) {
     console.log('[MAIN] Loading DEV URL:', devUrl);
     win.loadURL(devUrl);
   } else {
-    const indexPath = fileURLToPath(new URL('./dist/index.html', import.meta.url));
     console.log('[MAIN] Loading PROD file:', indexPath);
+    // loadFile es correcto; si prefieres, puedes usar loadURL(file://)
     win.loadFile(indexPath);
   }
+
+  // Abre DevTools si pones DEBUG_UI=1 al lanzar la app empaquetada
+  if (process.env.DEBUG_UI === '1') {
+    win.webContents.openDevTools({ mode: 'detach' });
+  }
 }
+
 
 registerIpc(ipcMain);
 
