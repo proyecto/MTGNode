@@ -1,6 +1,6 @@
 import { ipcMain, shell, dialog } from "electron";
 import { CardsController } from "../controllers/CardsController.js";
-import { CollectionController } from "../controllers/CollectionController.js";
+import { CollectionController } from '../controllers/CollectionController.js';
 import { ScryController } from "../controllers/ScryController.js";
 import { NewsController } from "../controllers/NewsController.js";
 import { ScryCardDetailController } from "../controllers/ScryCardDetailController.js";
@@ -32,6 +32,15 @@ export function registerIpc(ipcMain) {
   ipcMain.handle("collection:remove", async (_evt, { cardId }) =>
     CollectionController.remove(cardId)
   );
+  ipcMain.handle("collection:stats", async () => CollectionController.stats());
+  ipcMain.handle("collection:listDetailed", async () =>
+    CollectionController.listDetailed()
+  );
+  ipcMain.handle("collection:updatePaid", async (_evt, { cardId, paid_eur }) =>
+    CollectionController.updatePaid(cardId, paid_eur)
+  );
+  console.log('[IPC] collection handlers registered');
+
 
   // News
   ipcMain.handle("news:list", async (_evt, { repo, per_page } = {}) =>

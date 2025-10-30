@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Novedades from './views/Novedades.jsx';
 import Seguidas from './views/Seguidas.jsx';
-import Coleccion from './views/Coleccion.jsx';
+import Coleccion from './views/MiColeccion.jsx';
 import Colecciones from './views/Colecciones.jsx';
 import Sidebar from './components/Sidebar.jsx';
 

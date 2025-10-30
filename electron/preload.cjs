@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 try {
-  console.log("[PRELOAD] cargado (CJS)");
+  console.log("[] cargado (CJS)");
   const api = {
     // cards
     seedDemo: () => ipcRenderer.invoke("db:seed"),
@@ -18,6 +18,10 @@ try {
       ipcRenderer.invoke("collection:remove", { cardId }),
     collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
+    collectionStats: () => ipcRenderer.invoke("collection:stats"),
+    collectionListDetailed: () => ipcRenderer.invoke("collection:listDetailed"),
+    collectionUpdatePaid: (payload) =>
+      ipcRenderer.invoke("collection:updatePaid", payload),
 
     // news
     newsList: (opts) => ipcRenderer.invoke("news:list", opts),
@@ -43,7 +47,7 @@ try {
     openDbFolder: () => ipcRenderer.invoke("db:openFolder"),
   };
   contextBridge.exposeInMainWorld("api", api);
-  console.log("[PRELOAD] api expuesta (CJS):", Object.keys(api));
+  console.log("[] api expuesta (CJS):", Object.keys(api));
 } catch (e) {
   console.error("[PRELOAD] error:", e);
 }
