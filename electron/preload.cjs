@@ -2,12 +2,27 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 try {
   console.log("[] cargado (CJS)");
+
+  async function safeInvoke(channel, payload) {
+    try {
+      const res = await ipcRenderer.invoke(channel, payload);
+      if (res && res.ok === false && res.error) {
+        console.warn('[IPC FAIL]', channel, res.error);
+      }
+      return res;
+    } catch (e) {
+      console.error('[IPC EXCEPTION]', channel, e);
+      return { ok: false, error: String(e && e.message || e) };
+    }
+  }
+
   const api = {
     // cards
     seedDemo: () => ipcRenderer.invoke("db:seed"),
     listCards: () => ipcRenderer.invoke("db:list"),
     addCard: (payload) => ipcRenderer.invoke("db:add", payload),
     toggleFollow: (cardId) => ipcRenderer.invoke("cards:toggleFollow", cardId),
+
     // collection
     collectionList: () => ipcRenderer.invoke("collection:list"),
     addToCollection: (cardId, qty = 1) =>
@@ -20,8 +35,12 @@ try {
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
     collectionStats: () => ipcRenderer.invoke("collection:stats"),
     collectionListDetailed: () => ipcRenderer.invoke("collection:listDetailed"),
-    collectionUpdatePaid: (payload) =>
-      ipcRenderer.invoke("collection:updatePaid", payload),
+    collectionUpdatePaid: (payload) => ipcRenderer.invoke("collection:updatePaid", payload),
+    collectionList: () => safeInvoke('collection:list'),
+    collectionListDetailed: () => safeInvoke('collection:listDetailed'),
+    collectionStats: () => safeInvoke('collection:stats'),
+    collectionDiag: () => safeInvoke('collection:diag'),
+    collectionRepairMeta: () => safeInvoke('collection:repairMeta'),
 
     // news
     newsList: (opts) => ipcRenderer.invoke("news:list", opts),
