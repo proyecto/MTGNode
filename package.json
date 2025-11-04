@@ -6,16 +6,14 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -r \"vite\" \"wait-on http://localhost:5173 && ELECTRON_START_URL=http://localhost:5173 electron .\"",
-    "start": "electron .",
-    "build:renderer": "vite build",
-    "preview": "vite preview",
-    "scry:import": "ELECTRON_RUN_AS_NODE=1 electron scripts/import-scryfall.mjs",
+    "db:migrate": "electron . --migrate-only",
+    "reset": "bash scripts/reset-all.sh",
+    "scry:import": "ELECTRON_RUN_AS_NODE=1 npx electron scripts/import-scryfall.mjs",
     "dist": "electron-builder -m",
-    "rebuild": "electron-rebuild -f -w better-sqlite3",
     "rebuild-natives": "npx @electron/rebuild -f -w better-sqlite3 --arch=arm64 --electron-version=$(node -p \"require('electron/package.json').version\")",
     "setup-dev": "git pull && npm ci && npm run rebuild-natives && echo '✅ Entorno actualizado. Ejecuta ahora: npm run dev'",
-    "dist:zip": "npm run build:renderer && npm run rebuild-natives && npx electron-builder --mac zip --publish never",
     "clean": "rimraf dist dist_electron \"${HOME}/Library/Caches/electron-builder\"",
+    "build:renderer": "vite build",
     "dist:dmg": "npm run clean && npm run build:renderer && npm run rebuild-natives && npx electron-builder --mac dmg --publish never"
   },
   "build": {
@@ -24,6 +22,7 @@
     "files": [
       "dist/**",
       "dist/**/*",
+      "icon/**",
       "main.js",
       "electron/**",
       "preload.cjs",

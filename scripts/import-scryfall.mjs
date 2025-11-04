@@ -1,56 +1,27 @@
-// scripts/import-scryfall.mjs
-import fs from 'node:fs';
-import path from 'node:path';
+import { getDbPath } from '../electron/db/connection.js';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import fs from 'node:fs';
+import path from 'node:path';
 import zlib from 'node:zlib';
 import Database from 'better-sqlite3';
 import fetch from 'node-fetch';
-
-// CommonJS -> ESM interop (stream-json es CJS)
 import StreamJson from 'stream-json';
 import StreamArrayMod from 'stream-json/streamers/StreamArray.js';
+
 const { parser } = StreamJson;
 const { streamArray } = StreamArrayMod;
 
-const dbPath = process.env.MTG_DB_PATH || path.join(process.cwd(), 'data', 'mtg.sqlite');
-console.log('[import] DB_PATH:', dbPath);
+const DB_PATH = process.env.MTG_DB_PATH || getDbPath();
+console.log('[import] DB_PATH:', DB_PATH);
 
 // ✅ asegurar que existe la carpeta
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 // ahora sí
-const db = new Database(dbPath);
+const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = DELETE');
-
-function ensureSchema() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS scry_sets (
-      code TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      released_at TEXT
-    );
-    CREATE TABLE IF NOT EXISTS scry_cards (
-      id TEXT PRIMARY KEY,
-      oracle_id TEXT,
-      name TEXT NOT NULL,
-      set_code TEXT,
-      set_name TEXT,
-      collector_number TEXT,
-      released_at TEXT,
-      rarity TEXT,
-      lang TEXT,
-      usd REAL, usd_foil REAL, eur REAL, eur_foil REAL,
-      image_small TEXT,
-      image_normal TEXT,
-      type_line TEXT,
-      oracle_text TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_scry_cards_name ON scry_cards(name);
-    CREATE INDEX IF NOT EXISTS idx_scry_cards_set  ON scry_cards(set_code);
-  `);
-}
 
 async function getBulkUrl(type = 'default_cards') {
   const res = await fetch('https://api.scryfall.com/bulk-data');
@@ -100,7 +71,6 @@ function toNodeReadable(body) {
 }
 
 async function importDefaultCards() {
-  ensureSchema();
 
   const url = await getBulkUrl('default_cards');
   console.log('[scryfall] bulk url:', url);

@@ -1,8 +1,6 @@
 import * as Collection from "../models/CollectionModel.js";
-import * as Card from "../models/CardModel.js";
 import { db } from "../db/connection.js";
 
-// === helpers nuevos ===
 /**
  * Devuelve información de columnas de una tabla
  */
@@ -23,11 +21,6 @@ function hasColumn(conn, table, col) {
 function isNotNull(conn, table, col) {
   const info = tableInfo(conn, table).find(r => r.name === col);
   return !!(info && info.notnull === 1);
-}
-
-function toNumber(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
 }
 
 /**
@@ -80,33 +73,6 @@ function getOrCreateCardId(conn, payload) {
   return info.lastInsertRowid || null;
 }
 
-
-/**
- * Asegura que la tabla collection tenga las columnas mínimas necesarias.
- * Si faltan, las añade con ALTER TABLE (ignora errores si ya existen).
- */
-function ensureCollectionSchema(conn) {
-  const wanted = [
-    { name: 'qty', sql: "ALTER TABLE collection ADD COLUMN qty INTEGER DEFAULT 1" },
-    { name: 'name', sql: "ALTER TABLE collection ADD COLUMN name TEXT" },
-    { name: 'set_name', sql: "ALTER TABLE collection ADD COLUMN set_name TEXT" },
-    { name: 'rarity', sql: "ALTER TABLE collection ADD COLUMN rarity TEXT" },
-    { name: 'paid_eur', sql: "ALTER TABLE collection ADD COLUMN paid_eur REAL" },
-    { name: 'last_eur', sql: "ALTER TABLE collection ADD COLUMN last_eur REAL" },
-    { name: 'scry_id', sql: "ALTER TABLE collection ADD COLUMN scry_id TEXT" }
-  ];
-
-  for (const c of wanted) {
-    if (!hasColumn(conn, 'collection', c.name)) {
-      try {
-        conn.prepare(c.sql).run();
-        console.log(`[DB MIGRATE] Added missing column: ${c.name}`);
-      } catch (e) {
-        // Ignoramos errores si ya existe o no se puede añadir
-      }
-    }
-  }
-}
 
 export const CollectionController = {
   diag() {
@@ -285,7 +251,6 @@ export const CollectionController = {
 
   addFromScry(payload, qty = 1) {
     const conn = db();
-    ensureCollectionSchema(conn);
 
     // ¿card_id NOT NULL?
     const needsCardId =
@@ -371,7 +336,6 @@ export const CollectionController = {
     }
   },
 
-
   async upsertExact(cardId, qty) {
     try {
       return Collection.upsertExactQuantity(cardId, qty);
@@ -435,7 +399,6 @@ export const CollectionController = {
 
   updatePaid(cardId, paid_eur) {
     const conn = db();
-    ensureSchema(conn);
     if (!cardId) return { ok: false, error: "cardId requerido" };
     if (paid_eur == null || Number.isNaN(Number(paid_eur))) {
       conn
