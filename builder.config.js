@@ -12,7 +12,7 @@ module.exports = {
   asar: true,
   mac: {
     target: "dmg",
-    icon: "icon/icon.icns"
+    icon: "assets/icon/icon.icns"
   },
   compression: "maximum"
 };
