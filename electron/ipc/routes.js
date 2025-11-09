@@ -64,9 +64,11 @@ export function registerIpc(ipcMain) {
   safeHandle(ipcMain, "collection:updateQty", async (_evt, { cardId, qty }) =>
     CollectionController.updateQty(cardId, qty)
   );
-  safeHandle(ipcMain, "collection:remove", async (_evt, { cardId }) =>
+
+  ipcMain.handle("collection:remove", async (_evt, { cardId }) =>
     CollectionController.remove(cardId)
   );
+
   // --- Mi colección: diagnóstico / reparación ---
   safeHandle(ipcMain, "collection:diag", async () =>
     CollectionController.diag()

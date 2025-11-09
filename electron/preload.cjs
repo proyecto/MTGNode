@@ -1,72 +1,82 @@
+// electron/preload.cjs
 const { contextBridge, ipcRenderer } = require("electron");
 
 try {
   console.log("[] cargado (CJS)");
 
+  // Helper: invocación con manejo de errores uniforme
   async function safeInvoke(channel, payload) {
     try {
       const res = await ipcRenderer.invoke(channel, payload);
       if (res && res.ok === false && res.error) {
-        console.warn('[IPC FAIL]', channel, res.error);
+        console.warn("[IPC FAIL]", channel, res.error);
       }
       return res;
     } catch (e) {
-      console.error('[IPC EXCEPTION]', channel, e);
-      return { ok: false, error: String(e && e.message || e) };
+      console.error("[IPC EXCEPTION]", channel, e);
+      return { ok: false, error: String((e && e.message) || e) };
     }
   }
 
   const api = {
-    // cards
+    // --- Cards ---
     seedDemo: () => ipcRenderer.invoke("db:seed"),
     listCards: () => ipcRenderer.invoke("db:list"),
     addCard: (payload) => ipcRenderer.invoke("db:add", payload),
     toggleFollow: (cardId) => ipcRenderer.invoke("cards:toggleFollow", cardId),
 
-    // collection
-    collectionList: () => ipcRenderer.invoke("collection:list"),
+    // --- Collection ---
+    // Versiones "save" (con safeInvoke) para devolver {ok:false,error} en vez de throw
+    collectionList: () => safeInvoke("collection:list"),
+    collectionListDetailed: () => safeInvoke("collection:listDetailed"),
+    collectionStats: () => safeInvoke("collection:stats"),
+    collectionDiag: () => safeInvoke("collection:diag"),
+    collectionRepairMeta: () => safeInvoke("collection:repairMeta"),
+
     addToCollection: (cardId, qty = 1) =>
       ipcRenderer.invoke("collection:add", { cardId, qty }),
     collectionUpdateQty: (cardId, qty) =>
       ipcRenderer.invoke("collection:updateQty", { cardId, qty }),
-    collectionRemove: (cardId) =>
-      ipcRenderer.invoke("collection:remove", { cardId }),
+
+    // ✅ CORREGIDO: usar safeInvoke / ipcRenderer.invoke (NO 'invoke' suelto)
+    collectionRemove: (payload) => safeInvoke("collection:remove", payload),
+
     collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
-    collectionStats: () => ipcRenderer.invoke("collection:stats"),
-    collectionListDetailed: () => ipcRenderer.invoke("collection:listDetailed"),
-    collectionUpdatePaid: (payload) => ipcRenderer.invoke("collection:updatePaid", payload),
-    collectionList: () => safeInvoke('collection:list'),
-    collectionListDetailed: () => safeInvoke('collection:listDetailed'),
-    collectionStats: () => safeInvoke('collection:stats'),
-    collectionDiag: () => safeInvoke('collection:diag'),
-    collectionRepairMeta: () => safeInvoke('collection:repairMeta'),
+    collectionUpdatePaid: (payload) =>
+      ipcRenderer.invoke("collection:updatePaid", payload),
 
-    // news
+    // --- News ---
     newsList: (opts) => ipcRenderer.invoke("news:list", opts),
 
-    // Scry
+    // --- Scry (sets y cards) ---
     scrySets: () => ipcRenderer.invoke("scry:sets"),
     scrySetInfo: (code) => ipcRenderer.invoke("scry:setInfo", code),
     scryCardsBySet: (code) => ipcRenderer.invoke("scry:cardsBySet", code),
     scryUpdateBulk: () => ipcRenderer.invoke("scry:updateBulk"),
-    scrySearchByName: (opts) => ipcRenderer.invoke("scry:searchByName", opts),
 
-    // ScryCardDetail
+    // Acepta string (nombre) o objeto { q: 'name', ... }
+    scrySearchByName: (opts) => {
+      const payload = typeof opts === "string" ? { q: opts } : opts || {};
+      return ipcRenderer.invoke("scry:searchByName", payload);
+    },
+
+    // Detalle por id (o, si tu main lo soporta, también por nombre)
     scryCardDetail: (idOrName) =>
       ipcRenderer.invoke("scry:cardDetail", idOrName),
 
-    // desde scry_cards -> actions
+    // --- Acciones desde scry_cards ---
     scryAddToCollection: (payload) =>
       ipcRenderer.invoke("scry:addToCollection", payload),
     scryFollow: (payload) => ipcRenderer.invoke("scry:follow", payload),
 
-    // utils
+    // --- Utils ---
     debug: () => ipcRenderer.invoke("db:debug"),
     openDbFolder: () => ipcRenderer.invoke("db:openFolder"),
   };
+
   contextBridge.exposeInMainWorld("api", api);
-  console.log("[] api expuesta (CJS):", Object.keys(api));
+  console.log("[] api expuesta (CJS):", Object.keys(api).join(", "));
 } catch (e) {
   console.error("[PRELOAD] error:", e);
 }
