@@ -507,16 +507,22 @@ export const CollectionController = {
 
   updatePaid(cardId, paid_eur) {
     const conn = db();
-    if (!cardId) return { ok: false, error: "cardId requerido" };
-    if (paid_eur == null || Number.isNaN(Number(paid_eur))) {
-      conn
-        .prepare(`UPDATE collection SET paid_eur = NULL WHERE card_id = ?`)
-        .run(cardId);
-    } else {
-      conn
-        .prepare(`UPDATE collection SET paid_eur = ? WHERE card_id = ?`)
-        .run(Number(paid_eur), cardId);
+
+    // Normaliza el valor numérico
+    const value = Number(paid_eur);
+    if (Number.isNaN(value) || value < 0) {
+      return { ok: false, error: "paid_eur inválido" };
     }
-    return { ok: true };
+
+    // UPDATE por PK de collection (id). Evita parámetros con nombre: usa posicionales.
+    const stmt = conn.prepare(`
+      UPDATE collection
+         SET paid_eur = ?, updated_at = datetime('now')
+       WHERE id = ?
+    `);
+
+    const info = stmt.run(value, cardId);
+    // info.changes === 1 si actualizó; 0 si no encontró esa fila
+    return { ok: true, changes: info.changes };
   },
 };

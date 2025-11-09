@@ -79,13 +79,11 @@ export function registerIpc(ipcMain) {
   safeHandle(
     ipcMain,
     "collection:updatePaid",
-    async (_evt, { id, paid_eur }) => {
-      if (typeof CollectionController.updatePaid === "function") {
-        return CollectionController.updatePaid(id, paid_eur);
-      }
-      return { ok: false, error: "updatePaid no implementado" };
+    async (_evt, { cardId, paid_eur }) => {
+      return CollectionController.updatePaid(cardId, paid_eur);
     }
   );
+
   safeHandle(ipcMain, "collection:exportCSV", async () => {
     if (typeof CollectionController.exportCSV === "function") {
       return CollectionController.exportCSV();

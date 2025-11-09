@@ -33,6 +33,11 @@ export default function MiColeccion() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
 
+  // input de precio de compra en el modal
+  const [paidInput, setPaidInput] = useState(""); // string controlado
+  const [savingPaid, setSavingPaid] = useState(false); // estado de guardado
+  const [paidError, setPaidError] = useState(null); // validación
+
   async function loadData() {
     setLoading(true);
     setErr(null);
@@ -69,8 +74,19 @@ export default function MiColeccion() {
       setDetailData(null);
       setDetailLoading(false);
       setDetailError(null);
+      // resetear input al cerrar
+      setPaidInput("");
+      setPaidError(null);
       return;
     }
+
+    // inicializar input con paid_eur (si hay)
+    const initialPaid =
+      detail?.paid_eur != null && !isNaN(detail.paid_eur)
+        ? String(Number(detail.paid_eur).toFixed(2)).replace(".", ",")
+        : "";
+    setPaidInput(initialPaid);
+    setPaidError(null);
 
     (async () => {
       try {
@@ -98,7 +114,7 @@ export default function MiColeccion() {
           }
         }
 
-        // Segundo fallback (búsqueda por nombre) — opcional si lo tienes expuesto
+        // Segundo fallback (búsqueda por nombre)
         if (window.api.scrySearchByName && detail?.name) {
           const results = await window.api.scrySearchByName(detail.name);
           console.log(
@@ -124,30 +140,70 @@ export default function MiColeccion() {
     })();
   }, [detail]);
 
-  // Eliminar carta (intenta con id de collection; si no, usa card_id o scry_id)
+  // Guardar precio de compra
+  async function handleSavePaid() {
+    try {
+      setPaidError(null);
+      if (!detail?.id) return;
+
+      // normalizar: comas -> punto, quitar espacios
+      const raw = (paidInput ?? "").toString().trim().replace(",", ".");
+      if (raw === "") {
+        // Tratamos vacío como 0 (o podríamos dejarlo como NULL si tu backend lo soporta)
+        const res = await window.api.collectionUpdatePaid({
+          cardId: detail.id,
+          paid_eur: 0,
+        });
+        console.log("[MiColeccion] update paid (empty->0) res:", res);
+      } else {
+        const num = Number(raw);
+        if (isNaN(num) || num < 0) {
+          setPaidError("Introduce un número válido (≥ 0)");
+          return;
+        }
+        setSavingPaid(true);
+        const res = await window.api.collectionUpdatePaid({
+          cardId: detail.id,
+          paid_eur: num,
+        });
+        console.log("[MiColeccion] update paid res:", res);
+        if (!res || res.ok === false) {
+          alert("No se pudo guardar: " + (res?.error || "error desconocido"));
+          setSavingPaid(false);
+          return;
+        }
+        if (typeof res.changes === "number" && res.changes === 0) {
+          alert("No se actualizó ninguna fila (¿id incorrecto?)");
+          setSavingPaid(false);
+          return;
+        }
+      }
+
+      // refrescar datos y cerrar modal
+      setSavingPaid(false);
+      setDetail(null);
+      await loadData();
+    } catch (e) {
+      console.error("[MiColeccion] update paid error:", e);
+      setSavingPaid(false);
+      setPaidError("No se pudo guardar el precio.");
+    }
+  }
+
+  // Eliminar carta (usa el id de la fila de collection)
   async function handleDelete() {
     try {
-      // prioriza el id de la fila de collection
       const cardId = detail?.id ?? detail?.card_id ?? detail?.scry_id;
       if (!cardId) {
         alert("No se encontró identificador para borrar esta carta.");
         return;
       }
-
       const confirmed = window.confirm("¿Eliminar esta carta de tu colección?");
       if (!confirmed) return;
 
       const res = await window.api.collectionRemove({ cardId });
       console.log("[MiColeccion] remove result:", res);
 
-      // Si el backend devuelve algo tipo { ok, changes }:
-      if (res && typeof res.changes === "number" && res.changes === 0) {
-        alert(
-          "No se pudo eliminar (ninguna fila afectada). Puede que el backend esté borrando por otro campo."
-        );
-      }
-
-      // cerrar modal y refrescar
       setDetail(null);
       await loadData();
     } catch (e) {
@@ -340,6 +396,44 @@ export default function MiColeccion() {
                 <span className="k">Cantidad</span>
                 <span className="v">{detail.qty ?? "—"}</span>
               </div>
+
+              {/* --- Input de precio de compra --- */}
+              <div className="modal-row" style={{ alignItems: "center" }}>
+                <span className="k">Precio compra</span>
+                <div
+                  className="v"
+                  style={{ display: "flex", gap: 8, alignItems: "center" }}
+                >
+                  <input
+                    className="input"
+                    placeholder="Ej: 12,50"
+                    value={paidInput}
+                    onChange={(e) => {
+                      setPaidInput(e.target.value);
+                      setPaidError(null);
+                    }}
+                    inputMode="decimal"
+                  />
+                  <button
+                    className="btn"
+                    disabled={savingPaid}
+                    onClick={handleSavePaid}
+                  >
+                    {savingPaid ? "Guardando…" : "Guardar"}
+                  </button>
+                </div>
+              </div>
+              {paidError && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    color: "#dc2626",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {paidError}
+                </div>
+              )}
             </div>
 
             <div className="modal-actions">
@@ -526,7 +620,7 @@ export default function MiColeccion() {
           z-index: 50;
         }
         .modal {
-          width: min(680px, 92vw);
+          width: min(740px, 92vw);
           background: #fff;
           border: 1px solid #e2e8f0;
           border-radius: 12px;
@@ -598,6 +692,18 @@ export default function MiColeccion() {
         }
         .btn-danger:hover {
           background: #fee2e2;
+        }
+
+        .input {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 6px 10px;
+          min-width: 140px;
+        }
+        .input:focus {
+          outline: none;
+          border-color: #94a3b8;
+          box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.25);
         }
       `}</style>
     </div>
