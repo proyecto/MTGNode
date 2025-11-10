@@ -32,6 +32,8 @@ try {
     collectionStats: () => safeInvoke("collection:stats"),
     collectionDiag: () => safeInvoke("collection:diag"),
     collectionRepairMeta: () => safeInvoke("collection:repairMeta"),
+    collectionUpdateCondition: (payload) =>
+      ipcRenderer.invoke("collection:updateCondition", payload),
 
     addToCollection: (cardId, qty = 1) =>
       ipcRenderer.invoke("collection:add", { cardId, qty }),
@@ -45,6 +47,9 @@ try {
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
     collectionUpdatePaid: (payload) =>
       ipcRenderer.invoke("collection:updatePaid", payload),
+
+    collectionUpdateFields: (payload) =>
+      ipcRenderer.invoke("collection:updateFields", payload),
 
     // --- News ---
     newsList: (opts) => ipcRenderer.invoke("news:list", opts),

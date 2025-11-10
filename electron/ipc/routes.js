@@ -64,6 +64,13 @@ export function registerIpc(ipcMain) {
   safeHandle(ipcMain, "collection:updateQty", async (_evt, { cardId, qty }) =>
     CollectionController.updateQty(cardId, qty)
   );
+  safeHandle(
+    ipcMain,
+    "collection:updateCondition",
+    async (_evt, { cardId, condition }) => {
+      return CollectionController.updateCondition(cardId, condition);
+    }
+  );
 
   ipcMain.handle("collection:remove", async (_evt, { cardId }) =>
     CollectionController.remove(cardId)
@@ -81,6 +88,14 @@ export function registerIpc(ipcMain) {
     "collection:updatePaid",
     async (_evt, { cardId, paid_eur }) => {
       return CollectionController.updatePaid(cardId, paid_eur);
+    }
+  );
+
+  safeHandle(
+    ipcMain,
+    "collection:updateFields",
+    async (_evt, { cardId, fields }) => {
+      return CollectionController.updateFields(cardId, fields);
     }
   );
 

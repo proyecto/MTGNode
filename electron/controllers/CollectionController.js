@@ -495,7 +495,8 @@ export const CollectionController = {
       COALESCE(c.last_eur, s.eur, 0.0)                      AS eur,
       ${collectorExpr}                                      AS collector_number,
       (c.qty * COALESCE(c.last_eur, s.eur, 0.0))            AS current_row,
-      c.paid_eur
+      c.paid_eur,
+      c.condition
     FROM collection c
     LEFT JOIN scry_cards s ON s.id = c.scry_id
     ORDER BY COALESCE(s.name, c.name) COLLATE NOCASE ASC
@@ -523,6 +524,31 @@ export const CollectionController = {
 
     const info = stmt.run(value, cardId);
     // info.changes === 1 si actualizó; 0 si no encontró esa fila
+    return { ok: true, changes: info.changes };
+  },
+
+  updateFields(cardId, fields) {
+    const conn = db();
+    const allowed = ["paid_eur", "condition"];
+    const updates = [];
+    const values = [];
+
+    for (const key of allowed) {
+      if (key in fields) {
+        updates.push(`${key} = ?`);
+        values.push(fields[key]);
+      }
+    }
+    if (updates.length === 0)
+      return { ok: false, error: "No fields to update" };
+
+    const sql = `
+    UPDATE collection
+       SET ${updates.join(", ")}, updated_at = datetime('now')
+     WHERE id = ?
+  `;
+    values.push(cardId);
+    const info = conn.prepare(sql).run(...values);
     return { ok: true, changes: info.changes };
   },
 };

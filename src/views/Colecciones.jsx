@@ -1,628 +1,612 @@
 // src/views/Colecciones.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 
-export default function Colecciones() {
-  // --------- estado base ----------
-  const [sets, setSets] = useState([]);
-  const [selected, setSelected] = useState('');
-  const [meta, setMeta] = useState(null);
-  const [cards, setCards] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [q, setQ] = useState('');
+// ---- Helpers ----
+const fmtEUR = (n) =>
+  Number(n || 0).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 
-  // --------- búsqueda global ----------
-  const [globalMode, setGlobalMode] = useState(false);
-  const [globalItems, setGlobalItems] = useState([]);
-  const [globalLoading, setGlobalLoading] = useState(false);
+function unwrapDetail(obj) {
+  if (!obj) return null;
+  const lvl1 = obj?.data ?? obj;
+  const lvl2 = lvl1?.data ?? lvl1?.card ?? lvl1;
+  if (Array.isArray(lvl2?.data) && lvl2.data.length > 0) return lvl2.data[0];
+  if (Array.isArray(lvl2) && lvl2.length > 0) return lvl2[0];
+  return lvl2;
+}
 
-  // --------- detalle / scryfall extra ----------
-  const [selectedCard, setSelectedCard] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [detailStatus, setDetailStatus] = useState('idle');
+function pickImage(detailData) {
+  const d = unwrapDetail(detailData);
+  if (!d) return null;
 
-  // --------- zoom imagen ----------
-  const [imageZoomSrc, setImageZoomSrc] = useState(null);
-
-  // --------- responsive ----------
-  const [isNarrow, setIsNarrow] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 760px)');
-    const apply = () => setIsNarrow(mq.matches);
-    apply();
-    mq.addEventListener?.('change', apply);
-    return () => mq.removeEventListener?.('change', apply);
-  }, []);
-
-  // --------- acciones ----------
-  const [actionStatus, setActionStatus] = useState('');
-  const [actionBusy, setActionBusy] = useState(false);
-
-  // --------- carga sets ----------
-  useEffect(() => {
-    (async () => {
-      const list = await window.api.scrySets();
-      setSets(list || []);
-      if (list && list.length) setSelected(list[0].code);
-    })();
-  }, []);
-
-  // --------- carga cartas del set ----------
-  useEffect(() => {
-    if (!selected) return;
-    (async () => {
-      setLoading(true);
-      const info = await window.api.scrySetInfo(selected);
-      setMeta(info || null);
-      const rows = await window.api.scryCardsBySet(selected);
-      setCards(rows || []);
-      setLoading(false);
-      setQ('');
-    })();
-  }, [selected]);
-
-  // --------- utilidades ----------
-  const year = useMemo(() => {
-    if (!meta?.released_at) return '—';
-    const d = new Date(meta.released_at);
-    return Number.isNaN(d.getTime()) ? meta.released_at : String(d.getFullYear());
-  }, [meta]);
-
-  function norm(s) {
-    return String(s || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '');
-  }
-
-  const filtered = useMemo(() => {
-    if (!q) return cards;
-    const nq = norm(q);
-    return cards.filter(c =>
-      norm(c.name).includes(nq) ||
-      String(c.collector_number || '').toLowerCase().includes(nq)
+  const iu = d.image_uris || null;
+  if (iu) {
+    return (
+      iu.normal ||
+      iu.large ||
+      iu.png ||
+      iu.art_crop ||
+      iu.border_crop ||
+      iu.small ||
+      null
     );
-  }, [q, cards]);
-
-  const listSource = globalMode ? globalItems : filtered;
-
-  async function recargarActual() {
-    if (!selected) return;
-    setLoading(true);
-    const info = await window.api.scrySetInfo(selected);
-    setMeta(info || null);
-    const rows = await window.api.scryCardsBySet(selected);
-    setCards(rows || []);
-    setLoading(false);
   }
 
-  // --------- abrir/cerrar detalle ----------
-  function openDetail(card) {
-    console.log('[DETAIL] open', { id: card.id, name: card.name });
-    setSelectedCard(card);
-  }
-  function closeDetail() {
-    console.log('[DETAIL] close');
-    setSelectedCard(null);
-    setDetailData(null);
-    setDetailStatus('idle');
-    setImageZoomSrc(null);
-    setActionStatus('');
-    setActionBusy(false);
+  if (Array.isArray(d.card_faces) && d.card_faces.length) {
+    for (const f of d.card_faces) {
+      const fi = f?.image_uris || null;
+      if (!fi) continue;
+      const url =
+        fi.normal ||
+        fi.large ||
+        fi.png ||
+        fi.art_crop ||
+        fi.border_crop ||
+        fi.small ||
+        null;
+      if (url) return url;
+    }
   }
 
-  // --------- fetch scryfall ----------
+  return null;
+}
+
+function pickScryfallUrl(detailData) {
+  const d = unwrapDetail(detailData);
+  if (!d) return null;
+  return d.scryfall_uri || d.uri || null;
+}
+
+// ---- Componente principal ----
+export default function Colecciones() {
+  const [sets, setSets] = useState([]);
+  const [sel, setSel] = useState("");
+  const [setInfo, setSetInfo] = useState(null);
+  const [rows, setRows] = useState([]);
+
+  const [q, setQ] = useState("");
+  const [searchRes, setSearchRes] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  const [detail, setDetail] = useState(null);
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState(null);
+
+  const [loadingSets, setLoadingSets] = useState(true);
+  const [loadingSetCards, setLoadingSetCards] = useState(false);
+  const [err, setErr] = useState(null);
+
+  // --- 1) Cargar listado de sets ---
   useEffect(() => {
-    if (!selectedCard) return;
     (async () => {
-      console.log('[DETAIL] fetching from Scryfall…');
-      setDetailStatus('loading');
-      setDetailData(null);
-      const res = await window.api.scryCardDetail(selectedCard.id || selectedCard.name);
-      if (res?.ok) {
-        setDetailData(res.data);
-        setDetailStatus('ok');
-      } else {
-        console.warn('[DETAIL] fetch error', res?.error);
-        setDetailStatus('error');
+      try {
+        setLoadingSets(true);
+        const list = await window.api.scrySets();
+        setSets(Array.isArray(list) ? list : (list?.items || []));
+      } catch (e) {
+        console.error("[Colecciones] scrySets error:", e);
+        setErr("No se pudieron cargar las colecciones.");
+      } finally {
+        setLoadingSets(false);
       }
     })();
-  }, [selectedCard]);
+  }, []);
 
-  // --------- navegación ----------
-  const currentIndex = useMemo(() => (
-    selectedCard ? listSource.findIndex(x => x.id === selectedCard.id) : -1
-  ), [selectedCard, listSource]);
+  // --- 2) Cargar info + cartas de un set ---
+  useEffect(() => {
+    if (!sel) {
+      setSetInfo(null);
+      setRows([]);
+      return;
+    }
+    (async () => {
+      try {
+        setLoadingSetCards(true);
+        setErr(null);
+        const info = await window.api.scrySetInfo(sel);
+        setSetInfo(info || null);
+        const list = await window.api.scryCardsBySet(sel);
+        setRows(Array.isArray(list) ? list : (list?.items || []));
+      } catch (e) {
+        console.error("[Colecciones] set load error:", e);
+        setErr("No se pudieron cargar las cartas del set.");
+      } finally {
+        setLoadingSetCards(false);
+      }
+    })();
+  }, [sel]);
 
-  function goRel(delta) {
-    if (!selectedCard) return;
-    const i = currentIndex;
-    if (i < 0) return;
-    const j = i + delta;
-    if (j < 0 || j >= listSource.length) return;
-    setSelectedCard(listSource[j]);
+  // --- 3) Búsqueda global ---
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      if (!q.trim()) {
+        setSearchRes([]);
+        return;
+      }
+      try {
+        setSearching(true);
+        const res = await window.api.scrySearchByName(q.trim());
+        if (!cancel) setSearchRes(Array.isArray(res) ? res : (res?.items || []));
+      } catch (e) {
+        console.error("[Colecciones] search error:", e);
+        if (!cancel) setSearchRes([]);
+      } finally {
+        if (!cancel) setSearching(false);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [q]);
+
+  // --- 4) Detalle popup con fallback + rehidratado ---
+  useEffect(() => {
+    if (!detail) {
+      setDetailData(null);
+      setDetailError(null);
+      setDetailLoading(false);
+      return;
+    }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setDetailLoading(true);
+        setDetailError(null);
+        let fetched = null;
+
+        // 1) scry_id directo
+        if (detail?.scry_id && window.api.scryCardDetail) {
+          fetched = await window.api.scryCardDetail(detail.scry_id);
+          if (!cancelled) setDetailData({ source: "scry_id", data: fetched });
+        }
+
+        // 2) local por nombre + set
+        if (!fetched && window.api.scryFindByNameSet && detail?.name && detail?.set_name) {
+          const local = await window.api.scryFindByNameSet(detail.name, detail.set_name);
+          if (!cancelled && local?.ok) setDetailData({ source: "local-set", data: local });
+          fetched = local;
+        }
+
+        // 3) búsqueda por nombre
+        if (!fetched && window.api.scrySearchByName && detail?.name) {
+          const results = await window.api.scrySearchByName(detail.name);
+          if (!cancelled && Array.isArray(results) && results.length > 0) {
+            setDetailData({ source: "search", data: results });
+            fetched = results;
+          }
+        }
+
+        // --- Retry si no hay imagen ---
+        if (!cancelled) {
+          const imgNow = pickImage(fetched);
+          if (!imgNow) {
+            const cardObj = unwrapDetail(fetched) || {};
+            const tryId = cardObj.id || detail.scry_id || null;
+            if (tryId && window.api.scryCardDetail) {
+              const fresh = await window.api.scryCardDetail(tryId);
+              if (!cancelled) setDetailData({ source: "refresh", data: fresh });
+            }
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setDetailError(String(e?.message || e));
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [detail]);
+
+  // --- 5) Lista a mostrar ---
+  const listToShow = useMemo(() => {
+    if (q.trim()) return searchRes;
+    return rows;
+  }, [q, rows, searchRes]);
+
+  // --- Acciones ---
+  async function handleAddToCollection(card) {
+    try {
+      const payload = {
+        name: card?.name,
+        set_name: card?.set_name || setInfo?.name,
+        rarity: card?.rarity || null,
+        eur: Number(card?.eur || 0) || null,
+        qty: 1,
+      };
+      const res = await window.api.scryAddToCollection(payload);
+      if (res?.ok === false) alert("No se pudo añadir: " + (res?.error || "desconocido"));
+    } catch (e) {
+      alert("Error añadiendo: " + (e?.message || e));
+    }
   }
-  const goPrev = () => goRel(-1);
-  const goNext = () => goRel(1);
 
-  // --------- acciones rápidas ----------
-  async function addToCollectionFromDetail() {
-    if (!selectedCard) return;
-    setActionBusy(true);
-    setActionStatus('Añadiendo…');
-    const res = await window.api.scryAddToCollection({
-      name: selectedCard.name,
-      set_name: selectedCard.set_name || meta?.name || '',
-      rarity: selectedCard.rarity,
-      eur: selectedCard.eur,
-      qty: 1
-    });
-    setActionStatus(res?.ok ? 'Añadida a Mi colección ✅' : `Error ❌ ${res?.error || ''}`);
-    setActionBusy(false);
-    setTimeout(() => setActionStatus(''), 2000);
+  async function handleFollow(card, value = true) {
+    try {
+      const payload = {
+        name: card?.name,
+        set_name: card?.set_name || setInfo?.name,
+        rarity: card?.rarity || null,
+        eur: Number(card?.eur || 0) || null,
+        follow: !!value,
+      };
+      const res = await window.api.scryFollow(payload);
+      if (res?.ok === false) alert("No se pudo actualizar seguimiento: " + (res?.error || "desconocido"));
+    } catch (e) {
+      alert("Error en seguimiento: " + (e?.message || e));
+    }
   }
 
-  async function followFromDetail() {
-    if (!selectedCard) return;
-    setActionBusy(true);
-    setActionStatus('Marcando como seguida…');
-    const res = await window.api.scryFollow({
-      name: selectedCard.name,
-      set_name: selectedCard.set_name || meta?.name || '',
-      rarity: selectedCard.rarity,
-      eur: selectedCard.eur,
-      follow: true
-    });
-    setActionStatus(res?.ok ? 'Marcada como seguida ⭐' : `Error ❌ ${res?.error || ''}`);
-    setActionBusy(false);
-    setTimeout(() => setActionStatus(''), 2000);
-  }
-
-  // --------- zoom ----------
-  function openImageZoom(src) { if (src) setImageZoomSrc(src); }
-  function closeImageZoom() { setImageZoomSrc(null); }
-
-  // --------- render ----------
+  // --- Render ---
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      {/* Selector de set */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <label style={{ fontSize: 14, opacity: .8 }}>Colección</label>
-        <select
-          value={selected}
-          onChange={e => { setSelected(e.target.value); setGlobalMode(false); }}
-          style={select}
-        >
-          {sets.map(s => (
+    <div className="colecciones">
+      <h1 className="titulo">Colecciones</h1>
+
+      {/* Selector de colección */}
+      <div className="selector">
+        <select value={sel} onChange={(e) => setSel(e.target.value)} className="select">
+          <option value="">— Selecciona una colección —</option>
+          {sets.map((s) => (
             <option key={s.code} value={s.code}>
-              {s.name} ({s.code.toUpperCase()})
+              {s.name} ({s.code})
             </option>
           ))}
         </select>
-        <button onClick={recargarActual} style={btn}>Recargar</button>
+
+        <div className="meta">
+          {sel && setInfo ? (
+            <>
+              <span className="tag">
+                Año: {setInfo?.released_at ? new Date(setInfo.released_at).getFullYear() : "—"}
+              </span>
+              <span className="tag">Cartas: {setInfo?.card_count ?? "—"}</span>
+            </>
+          ) : (
+            <span className="muted">Selecciona un set para ver sus cartas.</span>
+          )}
+        </div>
       </div>
 
-      {/* Meta del set */}
-      {!globalMode && (
-        <div style={metaBox}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>
-            {meta?.name || '—'} <span style={{ opacity: .6 }}>({meta?.code?.toUpperCase() || '—'})</span>
-          </div>
-          <div style={{ fontSize: 13, opacity: .8 }}>
-            Año de publicación: <b>{year}</b> · Cartas: <b>{meta?.count ?? 0}</b>
-          </div>
-        </div>
-      )}
-
-      {/* Meta global */}
-      {globalMode && (
-        <div style={{ ...metaBox, background: '#f5faff', borderColor: '#cfe8ff' }}>
-          <div style={{ fontWeight: 700 }}>Resultados globales para “{q}”</div>
-          <div style={{ fontSize: 13, opacity: .8 }}>
-            Coincidencias: <b>{globalItems.length}</b> · Todas las colecciones
-          </div>
-        </div>
-      )}
-
-      {/* Búsqueda */}
-      <div style={searchBar}>
+      {/* Buscador global */}
+      <div className="buscador">
         <input
+          placeholder="Buscar en todas las colecciones por nombre…"
           value={q}
-          onChange={e => setQ(e.target.value)}
-          placeholder="Buscar por nombre o nº"
-          style={searchInput}
+          onChange={(e) => setQ(e.target.value)}
         />
-        {q && <button onClick={() => setQ('')} style={clearBtn} title="Limpiar">✕</button>}
-
-        <button
-          onClick={async () => {
-            if (!q.trim()) { alert('Introduce un término de búsqueda'); return; }
-            setGlobalLoading(true);
-            const res = await window.api.scrySearchByName({ q, limit: 100 });
-            setGlobalLoading(false);
-            if (res?.ok) {
-              setGlobalItems(res.items || []);
-              setGlobalMode(true);
-              console.log('[GLOBAL SEARCH] ok', { q, total: res.total });
-              alert(`(Global) ${res.total} coincidencias para “${q}”`);
-            } else {
-              alert(`(Global) Error: ${res?.error || 'desconocido'}`);
-            }
-          }}
-          style={btn}
-        >
-          Buscar global
-        </button>
-
-        {globalMode && (
-          <button
-            onClick={() => { setGlobalMode(false); setGlobalItems([]); }}
-            style={btn}
-          >
-            Salir búsqueda global
-          </button>
+        {q ? (
+          <span className="contador">
+            {searching ? "buscando…" : `${listToShow.length} resultados`}
+          </span>
+        ) : (
+          <span className="contador">{rows.length} cartas en el set</span>
         )}
-
-        <div style={countBadge}>
-          {globalMode
-            ? (globalLoading ? 'Buscando…' : `${listSource.length} resultados globales`)
-            : (loading ? 'Cargando…' : `${filtered.length} de ${cards.length}`)}
-        </div>
       </div>
+
+      {loadingSets && <div className="estado">Cargando colecciones…</div>}
+      {err && <div className="estado error">Error: {err}</div>}
 
       {/* Lista */}
-      <div style={listWrap}>
-        {globalMode ? (
-          globalLoading ? (
-            <div style={{ opacity: .7, padding: 12 }}>Buscando en todas las colecciones…</div>
-          ) : listSource.length === 0 ? (
-            <div style={{ opacity: .7, padding: 12 }}>Sin resultados globales para “{q}”.</div>
-          ) : (
-            <ul style={list}>
-              {listSource.map(c => (
-                <li key={c.id} style={row}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={numberBadge}>{c.collector_number || '—'}</div>
-                      <div>
-                        <div
-                          style={{ fontWeight: 600, cursor: 'pointer', color: '#007aff' }}
-                          onClick={() => openDetail(c)}
-                        >
-                          {c.name}
-                        </div>
-                        <div style={{ fontSize: 12, opacity: .75 }}>
-                          {c.set_name || '—'} · {c.rarity || '—'}
-                          {typeof c.eur === 'number' ? ` · ${c.eur} €` : ''}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )
-        ) : (
-          loading ? (
-            <div style={{ opacity: .7, padding: 12 }}>Cargando cartas…</div>
-          ) : !cards.length ? (
-            <div style={{ opacity: .7, padding: 12 }}>No hay cartas en este set.</div>
-          ) : filtered.length === 0 ? (
-            <div style={{ opacity: .7, padding: 12 }}>Sin resultados para “{q}”.</div>
-          ) : (
-            <ul style={list}>
-              {listSource.map(c => (
-                <li key={c.id} style={row}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <div style={numberBadge}>{c.collector_number || '—'}</div>
-                      <div>
-                        <div
-                          style={{ fontWeight: 600, cursor: 'pointer', color: '#007aff' }}
-                          onClick={() => openDetail(c)}
-                        >
-                          {c.name}
-                        </div>
-                        <div style={{ fontSize: 12, opacity: .75 }}>
-                          {c.rarity || '—'}
-                          {typeof c.eur === 'number' ? ` · ${c.eur} €` : ''}
-                          {typeof c.eur_foil === 'number' ? ` · foil ${c.eur_foil} €` : ''}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )
-        )}
-      </div>
+      {!err && (
+        <div className="lista">
+          {q && !searching && listToShow.length === 0 && (
+            <div className="sin-resultados">No hay resultados para “{q}”.</div>
+          )}
+          {!q && sel && loadingSetCards && (
+            <div className="estado">Cargando cartas del set…</div>
+          )}
 
-      {/* Overlay Detalle */}
-      {selectedCard && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={overlay}
-          onClick={(e) => { if (e.target === e.currentTarget) closeDetail(); }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') closeDetail();
-            if (e.key === 'ArrowLeft') { e.preventDefault(); goPrev(); }
-            if (e.key === 'ArrowRight') { e.preventDefault(); goNext(); }
-          }}
-          tabIndex={-1}
-        >
-          <div style={panel}>
-            <div style={panelHeader}>
-              <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {selectedCard.name}
+          {listToShow.map((c) => (
+            <div key={`${c.id || c.scry_id || c.name}-${c.collector_number || ""}`} className="fila">
+              <div className="izq">
+                <button
+                  className="nombre-btn"
+                  onClick={() => {
+                    setDetail({
+                      name: c.name,
+                      set_name: c.set_name || setInfo?.name || "",
+                      scry_id: c.scry_id || c.id || null,
+                      collector_number: c.collector_number || "",
+                      rarity: c.rarity || "",
+                      eur: c.eur ?? null,
+                    });
+                  }}
+                >
+                  {c.name}
+                </button>
+                <div className="sub">
+                  #{c.collector_number || "—"} · {c.set_name || setInfo?.name || "—"} · {c.rarity || "—"}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button style={btn} onClick={goPrev} disabled={currentIndex <= 0}>◀︎ Anterior</button>
-                <button style={btn} onClick={goNext} disabled={currentIndex >= listSource.length - 1}>Siguiente ▶︎</button>
-                <button style={btn} onClick={addToCollectionFromDetail} disabled={actionBusy}>📦 Añadir</button>
-                <button style={btn} onClick={followFromDetail} disabled={actionBusy}>⭐ Seguir</button>
-                <button style={btn} onClick={closeDetail}>Cerrar</button>
+
+              <div className="der">
+                <div className="precio">{c.eur != null ? fmtEUR(c.eur) : "—"}</div>
+                <div className="acciones">
+                  <button className="btn" onClick={() => handleAddToCollection(c)}>Añadir a colección</button>
+                  <button className="btn" onClick={() => handleFollow(c, true)}>Seguir</button>
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            <div style={panelBody}>
-              {actionStatus && <div style={statusMsg}>{actionStatus}</div>}
+      {/* Popup */}
+      {detail && (
+        <div className="overlay" onClick={() => setDetail(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{detail.name || "—"}</div>
+              <button className="modal-close" onClick={() => setDetail(null)}>✕</button>
+            </div>
 
-              <div style={{ display: 'flex', gap: 16, flexDirection: isNarrow ? 'column' : 'row' }}>
-                <div style={colLeft}>
-                  {selectedCard.image_normal ? (
-                    <img
-                      src={selectedCard.image_normal}
-                      alt={selectedCard.name}
-                      style={cardImg}
-                      onClick={() => openImageZoom(selectedCard.image_normal)}
-                    />
-                  ) : (
-                    <div style={noImgBox}>Sin imagen</div>
-                  )}
-                </div>
+            <div className="modal-body">
+              {detailLoading && <div className="muted">Cargando detalles…</div>}
+              {detailError && <div className="error">Error al cargar detalles: {detailError}</div>}
 
-                <div style={colRight}>
-                  <div style={section}>
-                    <div style={sectionTitle}>Datos</div>
-                    <div style={kv}><b>Edición:</b> <span>{selectedCard.set_name || '—'}</span></div>
-                    <div style={kv}><b>Número:</b> <span>{selectedCard.collector_number || '—'}</span></div>
-                    <div style={kv}><b>Rareza:</b> <span>{selectedCard.rarity || '—'}</span></div>
-                    <div style={kv}>
-                      <b>Precio:</b>{' '}
-                      <span>
-                        {typeof selectedCard.eur === 'number' ? `${selectedCard.eur} €` : '—'}{' '}
-                        {typeof selectedCard.eur_foil === 'number' ? `(Foil ${selectedCard.eur_foil} €)` : ''}
-                      </span>
+              {!detailLoading && !detailError && (
+                <>
+                  <div className="info-cols">
+                    <div className="kv">
+                      <div><span className="k">Set</span> <span className="v">{detail.set_name || "—"}</span></div>
+                      <div><span className="k">Número</span> <span className="v">{detail.collector_number || "—"}</span></div>
+                      <div><span className="k">Rareza</span> <span className="v">{detail.rarity || "—"}</span></div>
+                      <div><span className="k">Precio</span> <span className="v">{detail.eur != null ? fmtEUR(detail.eur) : "—"}</span></div>
+                    </div>
+                    <div className="imgwrap">
+                      {pickImage(detailData) ? (
+                        <img src={pickImage(detailData)} alt={detail.name} />
+                      ) : (
+                        <div className="noimg">
+                          Sin imagen
+                          {pickScryfallUrl(detailData) && (
+                            <div style={{ marginTop: 6 }}>
+                              <a href={pickScryfallUrl(detailData)} target="_blank" rel="noreferrer">
+                                Ver en Scryfall
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {selectedCard.oracle_text && (
-                    <div style={section}>
-                      <div style={sectionTitle}>Texto</div>
-                      <div style={rulesBox}>{selectedCard.oracle_text}</div>
-                    </div>
-                  )}
-
-                  <div style={section}>
-                    <div style={sectionTitle}>Info ampliada</div>
-                    {detailStatus === 'loading' && (
-                      <div style={{ fontSize: 13, opacity: .8 }}>Cargando datos ampliados…</div>
-                    )}
-                    {detailStatus === 'error' && (
-                      <div style={errorBox}>Error al cargar detalles.</div>
-                    )}
-                    {detailStatus === 'ok' && detailData && (
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <div style={kv}><b>Artista:</b> <span>{detailData.artist || '—'}</span></div>
-                        <div style={kv}><b>Color identidad:</b> <span>{detailData.color_identity?.join(', ') || '—'}</span></div>
-                        {detailData.flavor_text && (
-                          <div style={flavorBox}>“{detailData.flavor_text}”</div>
-                        )}
-                      </div>
-                    )}
+                  <div className="modal-actions">
+                    <button className="btn" onClick={() => handleAddToCollection(detail)}>Añadir a mi colección</button>
+                    <button className="btn" onClick={() => handleFollow(detail, true)}>Seguir</button>
+                    <button className="btn" onClick={() => setDetail(null)}>Cerrar</button>
                   </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
+      
+      {/* Estilos locales */}
+      <style jsx>{`
+        .colecciones {
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        .titulo {
+          font-size: 1.125rem;
+          font-weight: 600;
+          color: #1e293b;
+        }
 
-      {/* Zoom Imagen */}
-      {imageZoomSrc && (
-        <div
-          style={zoomOverlay}
-          onClick={(e) => { if (e.target === e.currentTarget) closeImageZoom(); }}
-          onKeyDown={(e) => { if (e.key === 'Escape') closeImageZoom(); }}
-          tabIndex={-1}
-        >
-          <img src={imageZoomSrc} alt="Carta" style={zoomImg} onClick={(e) => e.stopPropagation()} />
-          <button style={zoomCloseBtn} onClick={closeImageZoom}>Cerrar</button>
-        </div>
-      )}
+        .selector {
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .select {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 0.45rem 0.6rem;
+          min-width: 260px;
+          background: #fff;
+        }
+        .meta {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .tag {
+          background: #f1f5f9;
+          color: #475569;
+          border: 1px solid #e2e8f0;
+          border-radius: 999px;
+          padding: 0.25rem 0.6rem;
+          font-size: 0.75rem;
+        }
+        .muted {
+          color: #64748b;
+          font-size: 0.9rem;
+        }
+
+        .buscador {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+        .buscador input {
+          flex: 1;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 0.45rem 0.6rem;
+          background: #fff;
+        }
+        .contador {
+          font-size: 0.8rem;
+          color: #64748b;
+          white-space: nowrap;
+        }
+
+        .lista {
+          background: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          overflow: auto;
+          max-height: 66vh;
+        }
+        .fila {
+          display: flex;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.8rem 1rem;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .fila:last-child {
+          border-bottom: 0;
+        }
+        .izq {
+          min-width: 0;
+        }
+        .nombre-btn {
+          font-weight: 600;
+          color: #2563eb;
+          background: transparent;
+          border: 0;
+          padding: 0;
+          cursor: pointer;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .nombre-btn:hover {
+          text-decoration: underline;
+        }
+        .sub {
+          color: #64748b;
+          font-size: 0.8rem;
+        }
+
+        .der {
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+          white-space: nowrap;
+        }
+        .precio {
+          color: #0f172a;
+          font-weight: 600;
+        }
+        .acciones {
+          display: flex;
+          gap: 0.5rem;
+        }
+        .btn {
+          border: 1px solid #e2e8f0;
+          background: white;
+          border-radius: 8px;
+          padding: 0.35rem 0.6rem;
+          cursor: pointer;
+        }
+        .btn:hover {
+          background: #f8fafc;
+        }
+
+        /* Popup */
+        .overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 50;
+        }
+        .modal {
+          width: min(820px, 92vw);
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+          overflow: hidden;
+        }
+        .modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 14px;
+          border-bottom: 1px solid #e2e8f0;
+          background: #f8fafc;
+        }
+        .modal-title {
+          font-weight: 600;
+          color: #0f172a;
+        }
+        .modal-close {
+          border: 1px solid #e2e8f0;
+          background: white;
+          border-radius: 8px;
+          width: 28px;
+          height: 28px;
+          cursor: pointer;
+        }
+        .modal-close:hover {
+          background: #f1f5f9;
+        }
+        .modal-body {
+          padding: 14px;
+          display: grid;
+          gap: 10px;
+        }
+
+        .info-cols {
+          display: grid;
+          grid-template-columns: 1fr 280px;
+          gap: 12px;
+          align-items: start;
+        }
+        .kv {
+          display: grid;
+          gap: 6px;
+          color: #0f172a;
+        }
+        .k {
+          color: #64748b;
+          width: 90px;
+          display: inline-block;
+        }
+        .v {
+          font-weight: 500;
+        }
+
+        .imgwrap {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 8px;
+          min-height: 260px;
+        }
+        .imgwrap img {
+          max-width: 100%;
+          max-height: 360px;
+          border-radius: 8px;
+        }
+        .noimg {
+          color: #64748b;
+          font-size: 0.9rem;
+          text-align: center;
+        }
+
+        .modal-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+          border-top: 1px solid #e2e8f0;
+          padding-top: 10px;
+        }
+      `}</style>
     </div>
   );
 }
-
-// ---------------- estilos ----------------
-const select = { padding: '8px 10px', borderRadius: 8, border: '1px solid #e5e5e5' };
-
-const btn = {
-  padding: '6px 10px',
-  borderRadius: 8,
-  border: '1px solid #e5e5e5',
-  background: '#f5f5f7',
-  cursor: 'pointer'
-};
-
-const countBadge = {
-  marginLeft: 'auto',
-  fontSize: 12,
-  padding: '4px 8px',
-  borderRadius: 8,
-  background: '#f5f5f7',
-  border: '1px solid #e5e5e5'
-};
-
-const metaBox = {
-  border: '1px solid #ddd',
-  borderRadius: 12,
-  padding: 12,
-  background: '#fafafa'
-};
-
-const searchBar = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8
-};
-
-const searchInput = {
-  flex: 1,
-  padding: '8px 10px',
-  borderRadius: 8,
-  border: '1px solid #ccc'
-};
-
-const clearBtn = {
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  fontSize: 16,
-  opacity: .5
-};
-
-const listWrap = {
-  maxHeight: '70vh',
-  overflowY: 'auto',
-  border: '1px solid #e5e5e5',
-  borderRadius: 8,
-  background: '#fff'
-};
-
-const list = {
-  listStyle: 'none',
-  margin: 0,
-  padding: 0
-};
-
-const row = {
-  borderBottom: '1px solid #eee',
-  padding: '8px 12px'
-};
-
-const numberBadge = {
-  fontSize: 12,
-  background: '#f1f1f1',
-  borderRadius: 6,
-  padding: '2px 6px',
-  alignSelf: 'flex-start'
-};
-
-const overlay = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.4)',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  zIndex: 1000,
-  padding: 20
-};
-
-const panel = {
-  background: '#fff',
-  borderRadius: 12,
-  maxWidth: 900,
-  width: '100%',
-  maxHeight: '90vh',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden'
-};
-
-const panelHeader = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '10px 14px',
-  borderBottom: '1px solid #eee',
-  background: '#f8f8f8',
-  position: 'sticky',
-  top: 0,
-  zIndex: 2
-};
-
-const panelBody = {
-  padding: 16,
-  overflowY: 'auto'
-};
-
-const statusMsg = {
-  margin: '0 0 12px 0',
-  fontSize: 12,
-  background: '#f5faff',
-  border: '1px solid #cfe8ff',
-  color: '#074b8a',
-  padding: '6px 10px',
-  borderRadius: 8
-};
-
-const colLeft = { flex: '0 0 auto' };
-const colRight = { flex: 1 };
-
-const cardImg = {
-  width: 260,
-  borderRadius: 12,
-  boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-  cursor: 'zoom-in'
-};
-
-const noImgBox = {
-  width: 260,
-  height: 360,
-  borderRadius: 12,
-  background: '#f5f5f5',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#888'
-};
-
-const section = { marginBottom: 12 };
-const sectionTitle = { fontSize: 14, fontWeight: 700, marginBottom: 6 };
-const kv = { fontSize: 13, display: 'flex', gap: 6 };
-const rulesBox = { fontSize: 13, whiteSpace: 'pre-wrap', background: '#fafafa', borderRadius: 8, padding: 8 };
-const flavorBox = { fontStyle: 'italic', opacity: .8, marginTop: 6 };
-const errorBox = { fontSize: 13, color: '#b00020' };
-
-const zoomOverlay = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.8)',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  zIndex: 2000
-};
-
-const zoomImg = {
-  maxHeight: '90vh',
-  maxWidth: '90vw',
-  borderRadius: 12,
-  boxShadow: '0 2px 10px rgba(0,0,0,0.6)'
-};
-
-const zoomCloseBtn = {
-  position: 'fixed',
-  top: 20,
-  right: 20,
-  padding: '8px 12px',
-  borderRadius: 8,
-  border: '1px solid #fff',
-  background: 'rgba(255,255,255,0.2)',
-  color: '#fff',
-  cursor: 'pointer',
-  fontWeight: 600
-};
