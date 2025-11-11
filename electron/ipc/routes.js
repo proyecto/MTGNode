@@ -2,9 +2,7 @@
 import { shell } from 'electron';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-
 import { getDbPath } from '../db/connection.js';
-
 import { CardsController } from '../controllers/CardsController.js';
 import { CollectionController } from '../controllers/CollectionController.js';
 import { ScryController } from '../controllers/ScryController.js';
@@ -32,7 +30,6 @@ export function registerIpc(ipcMain) {
     return;
   }
   alreadyRegistered = true;
-
 
   // ---------------- News (GitHub issues) ----------------
   safeHandle(ipcMain, 'news:list', async (_evt, opts) => NewsController.list(opts));
@@ -110,7 +107,6 @@ export function registerIpc(ipcMain) {
   });
 
   // ----------------- Scry (online API) -----------------
-  // **ESTOS SON LOS QUE FALTABAN**
   safeHandle(ipcMain, 'scry:cardDetail', async (_evt, idOrName) => {
     return await ScryCardDetailController.fetchCardDetails(idOrName);
   });
