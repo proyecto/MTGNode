@@ -61,14 +61,12 @@ try {
     scryUpdateBulk: () => ipcRenderer.invoke("scry:updateBulk"),
 
     // Acepta string (nombre) o objeto { q: 'name', ... }
-    scrySearchByName: (opts) => {
-      const payload = typeof opts === "string" ? { q: opts } : opts || {};
-      return ipcRenderer.invoke("scry:searchByName", payload);
-    },
+    scrySearchByName: (query) => ipcRenderer.invoke("scry:searchByName", query),
+
 
     // Detalle por id (o, si tu main lo soporta, también por nombre)
-    scryCardDetail: (idOrName) =>
-      ipcRenderer.invoke("scry:cardDetail", idOrName),
+    scryCardDetail: (idOrName) => ipcRenderer.invoke("scry:cardDetail", idOrName),
+
 
     // --- Acciones desde scry_cards ---
     scryAddToCollection: (payload) =>
