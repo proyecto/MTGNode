@@ -16,14 +16,6 @@ async function bootSeed() {
   if (dbg.ok && dbg.cards === 0) {
     const seeded = await CardsController.seedDemo();
     const after = await CardsController.debug();
-    console.log(
-      "[BOOT] seedDemo:",
-      seeded,
-      "counts:",
-      dbg.cards,
-      "->",
-      after.cards
-    );
   } else {
     console.log("[BOOT] no seed needed. cards =", dbg.cards);
   }
@@ -49,24 +41,10 @@ function createWindow() {
 
   installAppMenu(win);
 
-  console.log("[VERSIONS]", process.versions);
-  console.log("[PATHS]", {
-    appPath: app.getAppPath(),
-    __dirname,
-    preloadPath,
-    indexPath,
-  });
-
-  // checks sin require()
-  console.log("[CHECK] preload exists?", fs.existsSync(preloadPath));
-  console.log("[CHECK] index exists?", fs.existsSync(indexPath));
-
   const devUrl = process.env.ELECTRON_START_URL;
   if (devUrl) {
-    console.log("[MAIN] Loading DEV URL:", devUrl);
     win.loadURL(devUrl);
   } else {
-    console.log("[MAIN] Loading PROD file:", indexPath);
     win.loadFile(indexPath);
   }
 }

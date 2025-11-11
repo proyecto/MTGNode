@@ -316,12 +316,6 @@ export const CollectionController = {
     `);
 
     const info = stmt.run(cardId, cardId, cardId);
-    console.log(
-      "[CollectionController.remove] deleted",
-      info.changes,
-      "rows for",
-      cardId
-    );
     return { ok: true, changes: info.changes };
   },
 

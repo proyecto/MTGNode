@@ -3,7 +3,6 @@ import fetch from 'node-fetch';
 
 export const ScryCardDetailController = {
   async fetchCardDetails(idOrName) {
-    console.log('[SCRYDETAIL] Fetching details for', idOrName);
     try {
       // Si parece un UUID de Scryfall (36 chars), pedimos por id. Si no, por nombre exacto.
       const url =
@@ -24,17 +23,16 @@ export const ScryCardDetailController = {
     }
   },
 
+  // Después (añadimos unique=prints y un orden útil):
   async searchByName(query) {
-    console.log('[SCRYDETAIL] Searching', query);
     try {
-      const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}`;
+      const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=released`;
       const res = await fetch(url);
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         return { ok: false, error: `Scryfall ${res.status}: ${text || res.statusText}` };
       }
       const json = await res.json();
-      // Devolvemos solo la primera página (json.data)
       return { ok: true, data: Array.isArray(json.data) ? json.data : [] };
     } catch (e) {
       console.error('[SCRYDETAIL] Search error', e);

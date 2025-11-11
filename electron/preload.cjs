@@ -2,8 +2,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 try {
-  console.log("[] cargado (CJS)");
-
   // Helper: invocación con manejo de errores uniforme
   async function safeInvoke(channel, payload) {
     try {
@@ -79,7 +77,6 @@ try {
   };
 
   contextBridge.exposeInMainWorld("api", api);
-  console.log("[] api expuesta (CJS):", Object.keys(api).join(", "));
 } catch (e) {
   console.error("[PRELOAD] error:", e);
 }

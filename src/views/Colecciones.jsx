@@ -240,7 +240,21 @@ export default function Colecciones() {
         try {
           setSearching(true);
           const res = await window.api.scrySearchByName(q.trim());
-          if (!cancel) setSearchRes(Array.isArray(res) ? res : (res?.items || []));
+          // Normalizamos a la misma forma que las filas por set
+          const items = (Array.isArray(res) ? res : (res?.items || []))
+            .map(c => ({
+              id: c.id, // scryfall id
+              scry_id: c.id,
+              name: c.name,
+              set_name: c.set_name,
+              collector_number: c.collector_number,
+              rarity: c.rarity,
+              eur: (c.prices && c.prices.eur) ? Number(c.prices.eur) : null,
+              // opcionales si luego quieres usarlos:
+              border_color: c.border_color,
+              lang: c.lang,
+            }));
+          if (!cancel) setSearchRes(items);
         } catch (e) {
           console.error("[Colecciones] searchAll error:", e);
           if (!cancel) setSearchRes([]);
@@ -351,7 +365,7 @@ export default function Colecciones() {
         name: card?.name,
         set_name: card?.set_name || setInfo?.name || "",
         rarity: card?.rarity || null,
-        eur: Number(card?.eur || 0) || null,
+        eur: (card?.eur != null) ? Number(card.eur) : null,
         qty: 1,
       };
       const res = await window.api.scryAddToCollection(payload);

@@ -13,7 +13,6 @@ const { parser } = StreamJson;
 const { streamArray } = StreamArrayMod;
 
 const DB_PATH = process.env.MTG_DB_PATH || getDbPath();
-console.log('[import] DB_PATH:', DB_PATH);
 
 // ✅ asegurar que existe la carpeta
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -73,7 +72,6 @@ function toNodeReadable(body) {
 async function importDefaultCards() {
 
   const url = await getBulkUrl('default_cards');
-  console.log('[scryfall] bulk url:', url);
 
   const res = await fetch(url, { compress: false });
   if (!res.ok) throw new Error('download failed: ' + res.status);
@@ -124,8 +122,6 @@ async function importDefaultCards() {
       if (buffer.length) tx(buffer);
     }
   );
-
-  console.log('[scryfall] import done ✅');
 }
 
 importDefaultCards().catch(err => {

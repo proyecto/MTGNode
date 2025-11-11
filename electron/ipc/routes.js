@@ -9,6 +9,8 @@ import { CardsController } from '../controllers/CardsController.js';
 import { CollectionController } from '../controllers/CollectionController.js';
 import { ScryController } from '../controllers/ScryController.js';
 import { ScryCardDetailController } from '../controllers/ScryCardDetailController.js';
+import { NewsController } from '../controllers/NewsController.js';
+
 
 // Pequeño helper para envolver handlers y loguear errores de forma uniforme
 function safeHandle(ipcMain, channel, fn) {
@@ -27,10 +29,13 @@ let alreadyRegistered = false;
 
 export function registerIpc(ipcMain) {
   if (alreadyRegistered) {
-    console.log('[IPC] handlers already registered, skipping');
     return;
   }
   alreadyRegistered = true;
+
+
+  // ---------------- News (GitHub issues) ----------------
+  safeHandle(ipcMain, 'news:list', async (_evt, opts) => NewsController.list(opts));
 
   // ---------------- Cards ----------------
   safeHandle(ipcMain, 'db:seed', async () => CardsController.seedDemo());
@@ -107,14 +112,11 @@ export function registerIpc(ipcMain) {
   // ----------------- Scry (online API) -----------------
   // **ESTOS SON LOS QUE FALTABAN**
   safeHandle(ipcMain, 'scry:cardDetail', async (_evt, idOrName) => {
-    console.log('[IPC] scry:cardDetail', idOrName);
     return await ScryCardDetailController.fetchCardDetails(idOrName);
   });
 
   safeHandle(ipcMain, 'scry:searchByName', async (_evt, query) => {
-    console.log('[IPC] scry:searchByName', query);
     const r = await ScryCardDetailController.searchByName(query);
-    // El preload espera un array si ok; devolvemos array o el error completo
     return r?.ok ? r.data : r;
   });
 
@@ -125,5 +127,4 @@ export function registerIpc(ipcMain) {
     return dbg;
   });
 
-  console.log('[IPC] collection handlers registered');
 }

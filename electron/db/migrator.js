@@ -46,7 +46,6 @@ export async function runMigrations() {
       // Ejecutar tal cual, sin envolver en BEGIN/COMMIT aquí.
       conn.exec(sql);
       markApplied(conn, file);
-      console.log('[MIGRATOR] applied:', file);
     } catch (e) {
       console.error('[MIGRATOR] failed:', file, e);
       throw e;

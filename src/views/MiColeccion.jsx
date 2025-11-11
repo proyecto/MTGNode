@@ -96,7 +96,6 @@ export default function MiColeccion() {
       });
       setSaving(false);
 
-      console.log("[MiColeccion] update fields res:", res);
       if (!res || res.ok === false)
         return alert("Error al guardar: " + (res?.error || "desconocido"));
       if (typeof res.changes === "number" && res.changes === 0)
@@ -117,7 +116,6 @@ export default function MiColeccion() {
       if (!cardId) return alert("No se encontró ID.");
       if (!window.confirm("¿Eliminar esta carta de tu colección?")) return;
       const res = await window.api.collectionRemove({ cardId });
-      console.log("[MiColeccion] remove result:", res);
       setDetail(null);
       await loadData();
     } catch (e) {
