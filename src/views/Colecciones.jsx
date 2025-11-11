@@ -147,31 +147,45 @@ function deriveSetExtrasFromRows(rows) {
   };
 }
 
+/** Identificador estable para localizar cartas en la lista actual */
+function cardKey(c) {
+  return `${c?.scry_id || c?.id || ""}::${c?.name || ""}::${c?.collector_number || ""}`;
+}
+
 /* ========================= Vista principal ========================= */
 
 export default function Colecciones() {
+  // Selector + info del set
   const [sets, setSets] = useState([]);
   const [sel, setSel] = useState("");
   const [setInfo, setSetInfo] = useState(null);
   const [rows, setRows] = useState([]);
 
+  // Extras derivados del set (borde/idioma)
   const { borderColor, lang } = useMemo(() => deriveSetExtrasFromRows(rows), [rows]);
 
+  // Búsqueda
   const [q, setQ] = useState("");
-  const [searchAll, setSearchAll] = useState(false);
+  const [searchAll, setSearchAll] = useState(false); // ⟵ “todas las ediciones”
   const [searchRes, setSearchRes] = useState([]);
   const [searching, setSearching] = useState(false);
 
+  // Estado general
   const [loadingSets, setLoadingSets] = useState(true);
   const [loadingSetCards, setLoadingSetCards] = useState(false);
   const [err, setErr] = useState(null);
 
-  const [detail, setDetail] = useState(null);
-  const [detailData, setDetailData] = useState(null);
+  // Popups de detalle e imagen grande
+  const [detail, setDetail] = useState(null);         // datos base (name, set_name, scry_id, eur…)
+  const [detailData, setDetailData] = useState(null); // detalle enriquecido desde Scryfall
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
-  const [imgLargeUrl, setImgLargeUrl] = useState(null);
+  const [imgLargeUrl, setImgLargeUrl] = useState(null); // 2º modal
 
+  // Índice de la carta abierta dentro de la lista visible (listToShow)
+  const [detailIndex, setDetailIndex] = useState(-1);
+
+  /* ========== 1) Carga de sets al montar ========== */
   useEffect(() => {
     (async () => {
       try {
@@ -188,6 +202,7 @@ export default function Colecciones() {
     })();
   }, []);
 
+  /* ========== 2) Al seleccionar set: info + cartas ========== */
   useEffect(() => {
     if (!sel) {
       setSetInfo(null);
@@ -211,6 +226,7 @@ export default function Colecciones() {
     })();
   }, [sel]);
 
+  /* ========== 3) Búsqueda ========== */
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -220,6 +236,7 @@ export default function Colecciones() {
       }
 
       if (searchAll) {
+        // Buscar en todas las ediciones (backend Scryfall/SQLite)
         try {
           setSearching(true);
           const res = await window.api.scrySearchByName(q.trim());
@@ -231,6 +248,7 @@ export default function Colecciones() {
           if (!cancel) setSearching(false);
         }
       } else {
+        // Buscar solo en el set actual (filtro en memoria)
         const s = q.trim().toLowerCase();
         const filtered = rows.filter((c) => (c.name || "").toLowerCase().includes(s));
         setSearchRes(filtered);
@@ -239,12 +257,20 @@ export default function Colecciones() {
     return () => { cancel = true; };
   }, [q, searchAll, rows]);
 
+  /* ========== 4) Fuente de lista (búsqueda vs set) ========== */
+  const listToShow = useMemo(() => {
+    if (q.trim()) return searchRes;
+    return rows;
+  }, [q, searchRes, rows]);
+
+  /* ========== 5) Cargar detalle al abrir popup ========== */
   useEffect(() => {
     if (!detail) {
       setDetailData(null);
       setDetailError(null);
       setDetailLoading(false);
       setImgLargeUrl(null);
+      setDetailIndex(-1);
       return;
     }
     let cancelled = false;
@@ -256,27 +282,37 @@ export default function Colecciones() {
 
         let fetched = null;
 
-        if (detail?.scry_id && window.api.scryCardDetail) {
-          fetched = await window.api.scryCardDetail(detail.scry_id);
-          if (!cancelled) setDetailData({ source: "scry_id", data: fetched });
-        }
-
-        if (!fetched && window.api.scrySearchByName && detail?.name) {
-          const results = await window.api.scrySearchByName(detail.name);
-          if (!cancelled && Array.isArray(results) && results.length > 0) {
-            setDetailData({ source: "search", data: results });
-            fetched = results;
+        // A) por scry_id (o id)
+        const idGuess = detail?.scry_id || detail?.id || null;
+        if (idGuess && window.api.scryCardDetail) {
+          fetched = await window.api.scryCardDetail(idGuess);
+          if (!cancelled) {
+            if (fetched?.ok) setDetailData(fetched.data);
+            else setDetailError(fetched?.error || "Error al cargar");
           }
         }
 
+        // B) por nombre si A no trajo nada usable
+        if (!cancelled && (!fetched || fetched?.ok === false) && window.api.scrySearchByName && detail?.name) {
+          const results = await window.api.scrySearchByName(detail.name);
+          if (!cancelled && Array.isArray(results) && results.length > 0) {
+            setDetailData(results);
+            fetched = { ok: true, data: results };
+          }
+        }
+
+        // C) rehidratar si no hay imagen
         if (!cancelled) {
-          const hasImg = !!pickSmallImage(fetched);
+          const hasImg = !!pickSmallImage(fetched?.ok ? fetched.data : fetched);
           if (!hasImg) {
-            const cardObj = unwrapDetail(fetched) || {};
-            const tryId = cardObj.id || detail.scry_id || null;
+            const cardObj = unwrapDetail(fetched?.ok ? fetched.data : fetched) || {};
+            const tryId = cardObj.id || idGuess || null;
             if (tryId && window.api.scryCardDetail) {
               const fresh = await window.api.scryCardDetail(tryId);
-              if (!cancelled) setDetailData({ source: "refresh", data: fresh });
+              if (!cancelled) {
+                if (fresh?.ok) setDetailData(fresh.data);
+                else setDetailError(fresh?.error || "Error al cargar");
+              }
             }
           }
         }
@@ -293,11 +329,22 @@ export default function Colecciones() {
     return () => { cancelled = true; };
   }, [detail]);
 
-  const listToShow = useMemo(() => {
-    if (q.trim()) return searchRes;
-    return rows;
-  }, [q, searchRes, rows]);
+  /* ========== 6) Mantener índice coherente al cambiar la lista ========== */
+  useEffect(() => {
+    if (!detail) return;
 
+    const curKey = cardKey(detail);
+    const idx = listToShow.findIndex((c) => cardKey(c) === curKey);
+    if (idx === -1) {
+      // La carta abierta ya no está en la lista actual (p.ej., cambió set/búsqueda)
+      setDetail(null);
+      setDetailIndex(-1);
+    } else {
+      setDetailIndex(idx);
+    }
+  }, [listToShow, detail]);
+
+  /* ========== 7) Acciones ========== */
   async function handleAddToCollection(card) {
     try {
       const payload = {
@@ -329,6 +376,31 @@ export default function Colecciones() {
       alert("Error en seguimiento: " + (e?.message || e));
     }
   }
+
+  // Abrir popup poniendo también el índice actual
+  function openDetailFromList(c) {
+    const idx = listToShow.findIndex((x) => cardKey(x) === cardKey(c));
+    setDetailIndex(idx);
+    setDetail({
+      name: c.name,
+      set_name: c.set_name || setInfo?.name || "",
+      scry_id: c.scry_id || c.id || null,
+      collector_number: c.collector_number || "",
+      rarity: c.rarity || "",
+      eur: c.eur ?? null,
+    });
+  }
+
+  // Navegación Anterior/Siguiente
+  function openAt(idx) {
+    if (idx < 0 || idx >= listToShow.length) return;
+    const c = listToShow[idx];
+    openDetailFromList(c);
+  }
+  function openPrev() { if (detailIndex > 0) openAt(detailIndex - 1); }
+  function openNext() { if (detailIndex >= 0 && detailIndex < listToShow.length - 1) openAt(detailIndex + 1); }
+
+  /* ========================= Render ========================= */
 
   return (
     <div className="colecciones">
@@ -394,19 +466,7 @@ export default function Colecciones() {
         {listToShow.map((c) => (
           <div key={`${c.id || c.scry_id || c.name}-${c.collector_number || ""}`} className="fila">
             <div className="izq">
-              <button
-                className="nombre-btn"
-                onClick={() => {
-                  setDetail({
-                    name: c.name,
-                    set_name: c.set_name || setInfo?.name || "",
-                    scry_id: c.scry_id || c.id || null,
-                    collector_number: c.collector_number || "",
-                    rarity: c.rarity || "",
-                    eur: c.eur ?? null,
-                  });
-                }}
-              >
+              <button className="nombre-btn" onClick={() => openDetailFromList(c)}>
                 {c.name}
               </button>
               <div className="sub">
@@ -430,8 +490,17 @@ export default function Colecciones() {
         <div className="overlay" onClick={() => setDetail(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">{detail.name || "—"}</div>
-              <button className="modal-close" onClick={() => setDetail(null)}>✕</button>
+              <div className="modal-title">
+                {detail.name || "—"}
+                {detailIndex >= 0 && (
+                  <span className="subindex"> · {detailIndex + 1}/{listToShow.length}</span>
+                )}
+              </div>
+              <div className="modal-header-actions">
+                <button className="btn nav" onClick={openPrev} disabled={detailIndex <= 0}>← Anterior</button>
+                <button className="btn nav" onClick={openNext} disabled={detailIndex < 0 || detailIndex >= listToShow.length - 1}>Siguiente →</button>
+                <button className="modal-close" onClick={() => setDetail(null)}>✕</button>
+              </div>
             </div>
 
             <div className="modal-body">
@@ -567,10 +636,15 @@ export default function Colecciones() {
         /* Popup detalle */
         .overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.35); display: flex; align-items: center; justify-content: center; z-index: 50; }
         .modal { width: min(920px, 92vw); background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 20px 50px rgba(15,23,42,0.25); overflow: hidden; }
-        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; gap: 8px; }
         .modal-title { font-weight: 600; color: #0f172a; }
+        .subindex { color: #64748b; font-weight: 400; font-size: .9em; }
+        .modal-header-actions { display: flex; gap: 6px; align-items: center; }
         .modal-close { border: 1px solid #e2e8f0; background: white; border-radius: 10px; width: 28px; height: 28px; cursor: pointer; }
         .modal-close:hover { background: #f1f5f9; }
+        .btn.nav { padding: 6px 10px; }
+        .btn.nav:disabled { opacity: .5; cursor: not-allowed; }
+
         .modal-body { padding: 14px; display: grid; gap: 12px; }
         .info-cols { display: grid; grid-template-columns: 1.2fr 300px; gap: 14px; align-items: start; }
         .kv { display: grid; gap: 8px; color: #0f172a; font-size: 0.95rem; }
