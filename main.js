@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { registerIpc } from "./electron/ipc/routes.js";
 import { CardsController } from "./electron/controllers/CardsController.js";
 import { installAppMenu } from "./electron/menu.js";
-import fs from "node:fs"; // añade esto arriba
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

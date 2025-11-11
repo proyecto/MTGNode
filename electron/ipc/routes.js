@@ -95,13 +95,11 @@ export function registerIpc(ipcMain) {
 
   // Agregar a colección / seguir desde resultados Scry
   safeHandle(ipcMain, 'scry:addToCollection', async (_evt, payload) => {
-    // payload: { name, set_name, rarity, eur, qty? }
     const qty = Number(payload?.qty) || 1;
     return CollectionController.addFromScry(payload, qty);
   });
 
   safeHandle(ipcMain, 'scry:follow', async (_evt, payload) => {
-    // payload: { name, set_name, rarity, eur, follow?: boolean }
     const value = payload?.follow ?? true;
     return CardsController.followFromScry(payload, !!value);
   });
@@ -122,5 +120,4 @@ export function registerIpc(ipcMain) {
     if (dbg?.dbPath) shell.showItemInFolder(dbg.dbPath);
     return dbg;
   });
-
 }

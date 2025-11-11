@@ -29,7 +29,6 @@ export async function runMigrations() {
 
   const migrationsDir = path.join(__dirname, 'migrations');
   if (!fs.existsSync(migrationsDir)) {
-    console.log('[MIGRATOR] no migrations dir:', migrationsDir);
     return;
   }
 
@@ -43,7 +42,6 @@ export async function runMigrations() {
     const sql = fs.readFileSync(abs, 'utf8');
 
     try {
-      // Ejecutar tal cual, sin envolver en BEGIN/COMMIT aquí.
       conn.exec(sql);
       markApplied(conn, file);
     } catch (e) {

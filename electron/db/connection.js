@@ -15,7 +15,6 @@ export function getDbPath() {
 export function db() {
   if (_db) return _db;
   const DB_PATH = process.env.MTG_DB_PATH || getDbPath();
-  console.log('[DB] Using database at', DB_PATH);
   _db = new Database(DB_PATH);
   _db.pragma('journal_mode = WAL');
   _db.pragma('foreign_keys = ON');

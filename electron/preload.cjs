@@ -7,11 +7,9 @@ try {
     try {
       const res = await ipcRenderer.invoke(channel, payload);
       if (res && res.ok === false && res.error) {
-        console.warn("[IPC FAIL]", channel, res.error);
       }
       return res;
     } catch (e) {
-      console.error("[IPC EXCEPTION]", channel, e);
       return { ok: false, error: String((e && e.message) || e) };
     }
   }
