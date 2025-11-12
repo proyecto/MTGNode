@@ -3,19 +3,38 @@ import React, { useEffect, useMemo, useState } from "react";
 
 /* ========================= Utils y helpers ========================= */
 
+// Intenta escoger la edición correcta entre varios resultados con el mismo nombre
+function pickBestMatchBySetAndNumber(results, detail) {
+  if (!Array.isArray(results) || results.length === 0) return null;
+  const setName = (detail?.set_name || "").toLowerCase();
+  const cn = String(detail?.collector_number || "").toLowerCase();
+
+  // 1) Match por set_name + collector_number (si lo tenemos)
+  if (setName && cn) {
+    const exact = results.find(r =>
+      (r.set_name || "").toLowerCase() === setName &&
+      String(r.collector_number || "").toLowerCase() === cn
+    );
+    if (exact) return exact;
+  }
+
+  // 2) Match por set_name
+  if (setName) {
+    const bySet = results.find(r =>
+      (r.set_name || "").toLowerCase() === setName
+    );
+    if (bySet) return bySet;
+  }
+
+  // 3) Último recurso: el primero
+  return results[0];
+}
+
 const fmtEUR = (n, sign = false) => {
   const v = Number(n || 0);
   const s = v.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
   return sign && v > 0 ? `+${s}` : s;
 };
-
-function pickBySet(candidates, setName) {
-  if (!Array.isArray(candidates) || candidates.length === 0) return null;
-  const byExact = candidates.find(
-    (c) => (c.set_name || "").toLowerCase() === (setName || "").toLowerCase()
-  );
-  return byExact || candidates[0];
-}
 
 // --- helpers de detalle (mismos que en Colecciones) ---
 function unwrapDetail(obj) {
@@ -149,7 +168,7 @@ export default function MiColeccion() {
     // Inicial rápido: si ya hay paid_eur -> ese; si no, usa eur de la fila como valor provisional
     const initialPrice =
       detail?.paid_eur != null ? Number(detail.paid_eur)
-      : (detail?.eur != null ? Number(detail.eur) : 0);
+        : (detail?.eur != null ? Number(detail.eur) : 0);
     setPriceInput(Number.isFinite(initialPrice) && initialPrice > 0 ? String(initialPrice) : "");
 
     setConditionInput(detail?.condition || "");
@@ -183,9 +202,15 @@ export default function MiColeccion() {
           detail?.name
         ) {
           const results = await window.api.scrySearchByName(detail.name);
+
           if (!cancelled && Array.isArray(results) && results.length > 0) {
-            setDetailData(results);
-            fetched = { ok: true, data: results };
+            // ⟵ AQUÍ aseguramos elegir la edición correcta
+            const picked = pickBestMatchBySetAndNumber(results, detail);
+
+            // Normalizamos `fetched` y `detailData` para que el resto de la vista funcione igual
+            const finalPayload = picked ? { ok: true, data: picked } : { ok: true, data: results };
+            setDetailData(finalPayload.data);
+            fetched = finalPayload;
           }
         }
 
