@@ -61,7 +61,7 @@ export function registerIpc(ipcMain) {
     safeHandle(ipcMain, 'collection:exportCSV', async () => CollectionController.exportCSV());
   }
   if (CollectionController.updatePaid) {
-    safeHandle(ipcMain, 'collection:updatePaid', async (_e, payload) => CollectionController.updatePaid(payload));
+    safeHandle(ipcMain, 'collection:updatePaid', async (_evt, payload) => CollectionController.updatePaid(payload));
   }
   if (CollectionController.diag) {
     safeHandle(ipcMain, 'collection:diag', async () => CollectionController.diag());

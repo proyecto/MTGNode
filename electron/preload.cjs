@@ -41,8 +41,8 @@ try {
 
     collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
-    collectionUpdatePaid: (payload) =>
-      ipcRenderer.invoke("collection:updatePaid", payload),
+    collectionUpdatePaid: (payload) => ipcRenderer.invoke("collection:updatePaid", payload),
+
 
     collectionUpdateFields: (payload) =>
       ipcRenderer.invoke("collection:updateFields", payload),
