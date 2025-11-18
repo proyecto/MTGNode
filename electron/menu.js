@@ -1,139 +1,93 @@
 // electron/menu.js
-import { app, Menu, shell, BrowserWindow, dialog } from 'electron';
+import { app, Menu, shell } from "electron";
 
-function isMac() {
-  return process.platform === 'darwin';
-}
+export function installAppMenu(mainWindow) {
+  const isMac = process.platform === "darwin";
 
-function isDev() {
-  // app.isPackaged === false cuando estamos en desarrollo
-  return !app.isPackaged;
-}
-
-/**
- * Instala el menú de la aplicación.
- * Llama a esta función una sola vez tras crear la BrowserWindow.
- * @param {BrowserWindow} win - La ventana principal (para acciones de recarga, zoom, etc.)
- */
-export function installAppMenu(win) {
   const template = [
-    // (macOS) Menú de la app con "Acerca de", Ocultar, Salir...
-    ...(isMac()
-      ? [{
-          label: app.name,
-          submenu: [
-            { role: 'about', label: `Acerca de ${app.name}` },
-            { type: 'separator' },
-            { role: 'services', label: 'Servicios' },
-            { type: 'separator' },
-            { role: 'hide', label: 'Ocultar' },
-            { role: 'hideOthers', label: 'Ocultar otros' },
-            { role: 'unhide', label: 'Mostrar todo' },
-            { type: 'separator' },
-            { role: 'quit', label: 'Salir' }
-          ]
-        }]
+    // Menú de la app en macOS
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about", label: "Acerca de MTGNode" },
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide", label: "Ocultar" },
+              { role: "hideOthers", label: "Ocultar otros" },
+              { role: "unhide", label: "Mostrar todo" },
+              { type: "separator" },
+              { role: "quit", label: "Salir" },
+            ],
+          },
+        ]
       : []),
 
-    // Archivo
+    /* ================= Archivo ================= */
     {
-      label: 'Archivo',
+      label: "Archivo",
       submenu: [
-        isMac()
-          ? { role: 'close', label: 'Cerrar ventana' }
-          : { role: 'quit', label: 'Salir' },
-      ]
+        {
+          label: "Exportar colección…",
+          accelerator: "CmdOrCtrl+E",
+          click: () => {
+            if (!mainWindow) return;
+            mainWindow.webContents.send("menu:collectionExport");
+          },
+        },
+        {
+          label: "Importar colección…",
+          accelerator: "CmdOrCtrl+I",
+          click: () => {
+            if (!mainWindow) return;
+            mainWindow.webContents.send("menu:collectionImport");
+          },
+        },
+        { type: "separator" },
+        isMac
+          ? { role: "close", label: "Cerrar ventana" }
+          : { role: "quit", label: "Salir" },
+      ],
     },
 
-    // Visualización
+    /* ================= Ver ================= */
     {
-      label: 'Visualización',
+      label: "Ver",
       submenu: [
-        {
-          label: 'Recargar',
-          accelerator: 'CmdOrCtrl+R',
-          click: () => {
-            const focused = BrowserWindow.getFocusedWindow() || win;
-            if (focused) focused.reload();
-          }
-        },
-        ...(isDev()
-          ? [{
-              label: 'Alternar Herramientas de Desarrollador',
-              accelerator: isMac() ? 'Alt+Command+I' : 'Ctrl+Shift+I',
-              click: () => {
-                const focused = BrowserWindow.getFocusedWindow() || win;
-                if (focused) focused.webContents.toggleDevTools();
-              }
-            }]
-          : []),
-        { type: 'separator' },
-        { role: 'resetZoom', label: 'Restablecer zoom' },
-        { role: 'zoomIn', label: 'Acercar' },
-        { role: 'zoomOut', label: 'Alejar' },
-        { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Pantalla completa' }
-      ]
+        { role: "reload", label: "Recargar" },
+        { role: "forceReload", label: "Recargar forzado" },
+        { role: "toggleDevTools", label: "Herramientas de desarrollo" },
+        { type: "separator" },
+        { role: "resetZoom", label: "Restablecer zoom" },
+        { role: "zoomIn", label: "Acercar" },
+        { role: "zoomOut", label: "Alejar" },
+        { type: "separator" },
+        { role: "togglefullscreen", label: "Pantalla completa" },
+      ],
     },
 
-    // Ayuda
+    /* ================= Ayuda ================= */
     {
-      label: 'Ayuda',
+      label: "Ayuda",
       submenu: [
         {
-          label: `Ayuda de ${app.name}`,
+          label: "Abrir carpeta de base de datos",
           click: () => {
-            dialog.showMessageBox({
-              type: 'info',
-              title: `Ayuda de ${app.name}`,
-              message: `${app.name} — Ayuda rápida`,
-              detail:
-                `• Barra lateral: navega entre Novedades, Seguidas, Mi colección y Colecciones.\n` +
-                `• Colecciones: usa el buscador o la búsqueda global para localizar cartas.\n` +
-                `• Detalle: clic en una carta para ver información ampliada, zoom en la imagen, y acciones rápidas.\n\n` +
-                `Sugerencia: en “Visualización” puedes recargar la ventana o abrir las herramientas de desarrollador (en modo dev).`,
-              buttons: ['Cerrar']
-            });
-          }
+            if (!mainWindow) return;
+            mainWindow.webContents.send("menu:openDbFolder");
+          },
         },
         {
-          label: 'Abrir carpeta de datos',
+          label: "Repositorio en GitHub",
           click: () => {
-            const userData = app.getPath('userData');
-            // En macOS abre el folder en Finder
-            shell.openPath(userData);
-          }
+            shell.openExternal("https://github.com/proyecto/MTGNode");
+          },
         },
-        { type: 'separator' },
-        {
-          label: 'Ver registro de cambios (Novedades)',
-          click: () => {
-            // Si tienes una ruta/URL específica, ábrela. Aquí abrimos tu sitio o repo si lo prefieres.
-            // shell.openExternal('https://tusitio.example.com/novedades');
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'Novedades',
-              message: 'Consulta la sección “Novedades” en la barra lateral para ver el backlog de cambios.',
-              buttons: ['Entendido']
-            });
-          }
-        }
-      ]
-    }
+      ],
+    },
   ];
-
-  // (Windows/Linux) añade menú de ventana estándar
-  if (!isMac()) {
-    template.splice(1, 0, {
-      label: 'Ventana',
-      submenu: [
-        { role: 'minimize', label: 'Minimizar' },
-        { role: 'zoom', label: 'Zoom' },
-        { type: 'separator' },
-        { role: 'close', label: 'Cerrar' }
-      ]
-    });
-  }
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);

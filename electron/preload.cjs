@@ -42,6 +42,8 @@ try {
     collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
     collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
     collectionUpdatePaid: (payload) => ipcRenderer.invoke("collection:updatePaid", payload),
+    collectionImportCSV: () => ipcRenderer.invoke("collection:importCSV"),
+    collectionExportCSV: () => ipcRenderer.invoke("collection:exportCSV"),
 
 
     collectionUpdateFields: (payload) =>
@@ -75,6 +77,24 @@ try {
   };
 
   contextBridge.exposeInMainWorld("api", api);
+  console.log("[] api expuesta (CJS):", Object.keys(api));
+
+  // === Eventos de menú ===
+  ipcRenderer.on("menu:collectionExport", () => {
+    console.log("[MENU] Exportar colección");
+    api.collectionExportCSV();
+  });
+
+  ipcRenderer.on("menu:collectionImport", () => {
+    console.log("[MENU] Importar colección");
+    api.collectionImportCSV();
+  });
+
+  ipcRenderer.on("menu:openDbFolder", () => {
+    console.log("[MENU] Abrir carpeta DB");
+    api.openDbFolder && api.openDbFolder();
+  });
+
 } catch (e) {
   console.error("[PRELOAD] error:", e);
 }

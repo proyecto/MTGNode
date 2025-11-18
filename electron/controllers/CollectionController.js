@@ -1,6 +1,8 @@
 // electron/controllers/CollectionController.js
 import * as Collection from "../models/CollectionModel.js";
 import { db } from "../db/connection.js";
+import { dialog } from "electron";
+import fs from "node:fs";
 
 /* ===================== Utilidades de introspección ===================== */
 
@@ -369,6 +371,72 @@ export const CollectionController = {
     return { ok: true, items: rows };
   },
 
+  // 👇 NUEVO: exportar colección a CSV
+  exportCSV() {
+    const conn = db();
+
+    // Reutilizamos la misma info que ves en MiColección
+    const rows = conn.prepare(`
+      SELECT
+        c.id,
+        c.qty,
+        COALESCE(NULLIF(c.name, ''), s.name, '')         AS name,
+        COALESCE(NULLIF(c.set_name, ''), s.set_name, '') AS set_name,
+        COALESCE(NULLIF(c.rarity, ''), s.rarity, '')     AS rarity,
+        COALESCE(c.last_eur, s.eur, 0.0)                 AS last_eur,
+        c.paid_eur,
+        c.condition
+      FROM collection c
+      LEFT JOIN scry_cards s ON s.id = c.scry_id
+      ORDER BY name COLLATE NOCASE ASC
+    `).all();
+
+    // Diálogo de guardar
+    const result = dialog.showSaveDialogSync({
+      title: "Exportar colección a CSV",
+      defaultPath: "mi-coleccion.csv",
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+
+    if (!result) {
+      return { ok: false, error: "cancelado" };
+    }
+
+    const filePath = result; // en Sync, showSaveDialogSync devuelve string o undefined
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+
+    const header = [
+      "id",
+      "qty",
+      "name",
+      "set_name",
+      "rarity",
+      "last_eur",
+      "paid_eur",
+      "condition",
+    ];
+
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push(
+        [
+          r.id,
+          r.qty,
+          esc(r.name),
+          esc(r.set_name),
+          esc(r.rarity),
+          r.last_eur ?? "",
+          r.paid_eur ?? "",
+          esc(r.condition ?? ""),
+        ].join(",")
+      );
+    }
+
+    fs.writeFileSync(filePath, lines.join("\n"), "utf8");
+    console.log("[CollectionController.exportCSV] escrito:", filePath);
+    return { ok: true, filePath, rows: rows.length };
+  },
+
   /* --------- Actualización de paid_eur / condition / comment --------- */
   /**
    * payload: { cardId: number, paid_eur?: number|null, condition?: string|null, comment?: string|null }
@@ -437,6 +505,8 @@ export const CollectionController = {
       return { ok: false, error: String(e?.message || e) };
     }
   },
+
+  
 
   /* --------- (Opcional) actualización directa de varias columnas --------- */
   updateFields(cardId, fields) {
